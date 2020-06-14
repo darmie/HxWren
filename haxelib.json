@@ -1,0 +1,14 @@
+{
+  "name": "WrenVM",
+  "url" : "https://github.com/YOUR_NAME/WrenVM/",
+  "license": "MIT",
+  "tags": ["haxe","interp"],
+  "description": "description of WrenVM",
+  "classPath": "src",
+  "version": "0.0.1",
+  "releasenote": "Initial release",
+  "contributors": ["YOUR_NAME"],
+  "dependencies": {
+
+  }
+}
