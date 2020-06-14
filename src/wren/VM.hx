@@ -176,7 +176,7 @@ class VM {
 	 */
 	public function freeObj(obj:Obj) {}
 
-	public static function reallocate<T>(vm:VM, memory:T):T {
+	public static function reallocate<T>(vm:VM, ?memory:T):T {
 		return null;
 	}
 

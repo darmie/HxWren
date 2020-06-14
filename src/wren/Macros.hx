@@ -210,17 +210,21 @@ class Macros {
 	/**
 	 * Use the VM's allocator to allocate an object of [type].
 	 * @param vm
-	 * @return cast vm.reallocate(null, 0)
+	 * @return T
 	 */
-	public static inline function ALLOCATE<T>(vm:VM):T
-		return cast vm.reallocate(null, 0);
+	public static inline function ALLOCATE<T>(vm:VM):T {
+		return VM.reallocate<T>(vm);
+	}
 
-	public static inline function ALLOCATE_FLEX<T1, T2>(vm:VM):T1
-		return cast vm.reallocate(null, 0);
+	public static inline function ALLOCATE_FLEX<T1, T2>(vm:VM):T1 {
+		return VM.reallocate<T>(vm);
+	}
 
-	public static inline function ALLOCATE_ARRAY<T1>(vm:VM):T1
-		return cast vm.reallocate(null, 0);
+	public static inline function ALLOCATE_ARRAY<T1>(vm:VM):T1 {
+		return VM.reallocate<T>(vm);
+	}
 
-	public static inline function DEALLOCATE<T>(vm:VM, val:T):T
-		return cast vm.reallocate(val, 0);
+	public static inline function DEALLOCATE<T>(vm:VM, val:T):T {
+		return VM.reallocate<T>(vm);
+	}
 }
