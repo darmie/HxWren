@@ -14,455 +14,454 @@ using StringTools;
 class Core {
 	var vm:VM;
 
-	static final coreModuleSource =
-	"class Bool {}\n"+
-	"class Fiber {}\n"+
-	"class Fn {}\n"+
-	"class Null {}\n"+
-	"class Num {}\n"+
-	"\n"+
-	"class Sequence {\n"+
-	"  all(f) {\n"+
-	"    var result = true\n"+
-	"    for (element in this) {\n"+
-	"      result = f.call(element)\n"+
-	"      if (!result) return result\n"+
-	"    }\n"+
-	"    return result\n"+
-	"  }\n"+
-	"\n"+
-	"  any(f) {\n"+
-	"    var result = false\n"+
-	"    for (element in this) {\n"+
-	"      result = f.call(element)\n"+
-	"      if (result) return result\n"+
-	"    }\n"+
-	"    return result\n"+
-	"  }\n"+
-	"\n"+
-	"  contains(element) {\n"+
-	"    for (item in this) {\n"+
-	"      if (element == item) return true\n"+
-	"    }\n"+
-	"    return false\n"+
-	"  }\n"+
-	"\n"+
-	"  count {\n"+
-	"    var result = 0\n"+
-	"    for (element in this) {\n"+
-	"      result = result + 1\n"+
-	"    }\n"+
-	"    return result\n"+
-	"  }\n"+
-	"\n"+
-	"  count(f) {\n"+
-	"    var result = 0\n"+
-	"    for (element in this) {\n"+
-	"      if (f.call(element)) result = result + 1\n"+
-	"    }\n"+
-	"    return result\n"+
-	"  }\n"+
-	"\n"+
-	"  each(f) {\n"+
-	"    for (element in this) {\n"+
-	"      f.call(element)\n"+
-	"    }\n"+
-	"  }\n"+
-	"\n"+
-	"  isEmpty { iterate(null) ? false : true }\n"+
-	"\n"+
-	"  map(transformation) { MapSequence.new(this, transformation) }\n"+
-	"\n"+
-	"  skip(count) {\n"+
-	"    if (!(count is Num) || !count.isInteger || count < 0) {\n"+
-	"      Fiber.abort(\"Count must be a non-negative integer.\")\n"+
-	"    }\n"+
-	"\n"+
-	"    return SkipSequence.new(this, count)\n"+
-	"  }\n"+
-	"\n"+
-	"  take(count) {\n"+
-	"    if (!(count is Num) || !count.isInteger || count < 0) {\n"+
-	"      Fiber.abort(\"Count must be a non-negative integer.\")\n"+
-	"    }\n"+
-	"\n"+
-	"    return TakeSequence.new(this, count)\n"+
-	"  }\n"+
-	"\n"+
-	"  where(predicate) { WhereSequence.new(this, predicate) }\n"+
-	"\n"+
-	"  reduce(acc, f) {\n"+
-	"    for (element in this) {\n"+
-	"      acc = f.call(acc, element)\n"+
-	"    }\n"+
-	"    return acc\n"+
-	"  }\n"+
-	"\n"+
-	"  reduce(f) {\n"+
-	"    var iter = iterate(null)\n"+
-	"    if (!iter) Fiber.abort(\"Can't reduce an empty sequence.\")\n"+
-	"\n"+
-	"    // Seed with the first element.\n"+
-	"    var result = iteratorValue(iter)\n"+
-	"    while (iter = iterate(iter)) {\n"+
-	"      result = f.call(result, iteratorValue(iter))\n"+
-	"    }\n"+
-	"\n"+
-	"    return result\n"+
-	"  }\n"+
-	"\n"+
-	"  join() { join(\"\") }\n"+
-	"\n"+
-	"  join(sep) {\n"+
-	"    var first = true\n"+
-	"    var result = \"\"\n"+
-	"\n"+
-	"    for (element in this) {\n"+
-	"      if (!first) result = result + sep\n"+
-	"      first = false\n"+
-	"      result = result + element.toString\n"+
-	"    }\n"+
-	"\n"+
-	"    return result\n"+
-	"  }\n"+
-	"\n"+
-	"  toList {\n"+
-	"    var result = List.new()\n"+
-	"    for (element in this) {\n"+
-	"      result.add(element)\n"+
-	"    }\n"+
-	"    return result\n"+
-	"  }\n"+
-	"}\n"+
-	"\n"+
-	"class MapSequence is Sequence {\n"+
-	"  construct new(sequence, fn) {\n"+
-	"    _sequence = sequence\n"+
-	"    _fn = fn\n"+
-	"  }\n"+
-	"\n"+
-	"  iterate(iterator) { _sequence.iterate(iterator) }\n"+
-	"  iteratorValue(iterator) { _fn.call(_sequence.iteratorValue(iterator)) }\n"+
-	"}\n"+
-	"\n"+
-	"class SkipSequence is Sequence {\n"+
-	"  construct new(sequence, count) {\n"+
-	"    _sequence = sequence\n"+
-	"    _count = count\n"+
-	"  }\n"+
-	"\n"+
-	"  iterate(iterator) {\n"+
-	"    if (iterator) {\n"+
-	"      return _sequence.iterate(iterator)\n"+
-	"    } else {\n"+
-	"      iterator = _sequence.iterate(iterator)\n"+
-	"      var count = _count\n"+
-	"      while (count > 0 && iterator) {\n"+
-	"        iterator = _sequence.iterate(iterator)\n"+
-	"        count = count - 1\n"+
-	"      }\n"+
-	"      return iterator\n"+
-	"    }\n"+
-	"  }\n"+
-	"\n"+
-	"  iteratorValue(iterator) { _sequence.iteratorValue(iterator) }\n"+
-	"}\n"+
-	"\n"+
-	"class TakeSequence is Sequence {\n"+
-	"  construct new(sequence, count) {\n"+
-	"    _sequence = sequence\n"+
-	"    _count = count\n"+
-	"  }\n"+
-	"\n"+
-	"  iterate(iterator) {\n"+
-	"    if (!iterator) _taken = 1 else _taken = _taken + 1\n"+
-	"    return _taken > _count ? null : _sequence.iterate(iterator)\n"+
-	"  }\n"+
-	"\n"+
-	"  iteratorValue(iterator) { _sequence.iteratorValue(iterator) }\n"+
-	"}\n"+
-	"\n"+
-	"class WhereSequence is Sequence {\n"+
-	"  construct new(sequence, fn) {\n"+
-	"    _sequence = sequence\n"+
-	"    _fn = fn\n"+
-	"  }\n"+
-	"\n"+
-	"  iterate(iterator) {\n"+
-	"    while (iterator = _sequence.iterate(iterator)) {\n"+
-	"      if (_fn.call(_sequence.iteratorValue(iterator))) break\n"+
-	"    }\n"+
-	"    return iterator\n"+
-	"  }\n"+
-	"\n"+
-	"  iteratorValue(iterator) { _sequence.iteratorValue(iterator) }\n"+
-	"}\n"+
-	"\n"+
-	"class String is Sequence {\n"+
-	"  bytes { StringByteSequence.new(this) }\n"+
-	"  codePoints { StringCodePointSequence.new(this) }\n"+
-	"\n"+
-	"  split(delimiter) {\n"+
-	"    if (!(delimiter is String) || delimiter.isEmpty) {\n"+
-	"      Fiber.abort(\"Delimiter must be a non-empty string.\")\n"+
-	"    }\n"+
-	"\n"+
-	"    var result = []\n"+
-	"\n"+
-	"    var last = 0\n"+
-	"    var index = 0\n"+
-	"\n"+
-	"    var delimSize = delimiter.byteCount_\n"+
-	"    var size = byteCount_\n"+
-	"\n"+
-	"    while (last < size && (index = indexOf(delimiter, last)) != -1) {\n"+
-	"      result.add(this[last...index])\n"+
-	"      last = index + delimSize\n"+
-	"    }\n"+
-	"\n"+
-	"    if (last < size) {\n"+
-	"      result.add(this[last..-1])\n"+
-	"    } else {\n"+
-	"      result.add(\"\")\n"+
-	"    }\n"+
-	"    return result\n"+
-	"  }\n"+
-	"\n"+
-	"  replace(from, to) {\n"+
-	"    if (!(from is String) || from.isEmpty) {\n"+
-	"      Fiber.abort(\"From must be a non-empty string.\")\n"+
-	"    } else if (!(to is String)) {\n"+
-	"      Fiber.abort(\"To must be a string.\")\n"+
-	"    }\n"+
-	"\n"+
-	"    var result = \"\"\n"+
-	"\n"+
-	"    var last = 0\n"+
-	"    var index = 0\n"+
-	"\n"+
-	"    var fromSize = from.byteCount_\n"+
-	"    var size = byteCount_\n"+
-	"\n"+
-	"    while (last < size && (index = indexOf(from, last)) != -1) {\n"+
-	"      result = result + this[last...index] + to\n"+
-	"      last = index + fromSize\n"+
-	"    }\n"+
-	"\n"+
-	"    if (last < size) result = result + this[last..-1]\n"+
-	"\n"+
-	"    return result\n"+
-	"  }\n"+
-	"\n"+
-	"  trim() { trim_(\"\t\r\n \", true, true) }\n"+
-	"  trim(chars) { trim_(chars, true, true) }\n"+
-	"  trimEnd() { trim_(\"\t\r\n \", false, true) }\n"+
-	"  trimEnd(chars) { trim_(chars, false, true) }\n"+
-	"  trimStart() { trim_(\"\t\r\n \", true, false) }\n"+
-	"  trimStart(chars) { trim_(chars, true, false) }\n"+
-	"\n"+
-	"  trim_(chars, trimStart, trimEnd) {\n"+
-	"    if (!(chars is String)) {\n"+
-	"      Fiber.abort(\"Characters must be a string.\")\n"+
-	"    }\n"+
-	"\n"+
-	"    var codePoints = chars.codePoints.toList\n"+
-	"\n"+
-	"    var start\n"+
-	"    if (trimStart) {\n"+
-	"      while (start = iterate(start)) {\n"+
-	"        if (!codePoints.contains(codePointAt_(start))) break\n"+
-	"      }\n"+
-	"\n"+
-	"      if (start == false) return \"\"\n"+
-	"    } else {\n"+
-	"      start = 0\n"+
-	"    }\n"+
-	"\n"+
-	"    var end\n"+
-	"    if (trimEnd) {\n"+
-	"      end = byteCount_ - 1\n"+
-	"      while (end >= start) {\n"+
-	"        var codePoint = codePointAt_(end)\n"+
-	"        if (codePoint != -1 && !codePoints.contains(codePoint)) break\n"+
-	"        end = end - 1\n"+
-	"      }\n"+
-	"\n"+
-	"      if (end < start) return \"\"\n"+
-	"    } else {\n"+
-	"      end = -1\n"+
-	"    }\n"+
-	"\n"+
-	"    return this[start..end]\n"+
-	"  }\n"+
-	"\n"+
-	"  *(count) {\n"+
-	"    if (!(count is Num) || !count.isInteger || count < 0) {\n"+
-	"      Fiber.abort(\"Count must be a non-negative integer.\")\n"+
-	"    }\n"+
-	"\n"+
-	"    var result = \"\"\n"+
-	"    for (i in 0...count) {\n"+
-	"      result = result + this\n"+
-	"    }\n"+
-	"    return result\n"+
-	"  }\n"+
-	"}\n"+
-	"\n"+
-	"class StringByteSequence is Sequence {\n"+
-	"  construct new(string) {\n"+
-	"    _string = string\n"+
-	"  }\n"+
-	"\n"+
-	"  [index] { _string.byteAt_(index) }\n"+
-	"  iterate(iterator) { _string.iterateByte_(iterator) }\n"+
-	"  iteratorValue(iterator) { _string.byteAt_(iterator) }\n"+
-	"\n"+
-	"  count { _string.byteCount_ }\n"+
-	"}\n"+
-	"\n"+
-	"class StringCodePointSequence is Sequence {\n"+
-	"  construct new(string) {\n"+
-	"    _string = string\n"+
-	"  }\n"+
-	"\n"+
-	"  [index] { _string.codePointAt_(index) }\n"+
-	"  iterate(iterator) { _string.iterate(iterator) }\n"+
-	"  iteratorValue(iterator) { _string.codePointAt_(iterator) }\n"+
-	"\n"+
-	"  count { _string.count }\n"+
-	"}\n"+
-	"\n"+
-	"class List is Sequence {\n"+
-	"  addAll(other) {\n"+
-	"    for (element in other) {\n"+
-	"      add(element)\n"+
-	"    }\n"+
-	"    return other\n"+
-	"  }\n"+
-	"\n"+
-	"  toString { \"[%(join(\", \"))]\" }\n"+
-	"\n"+
-	"  +(other) {\n"+
-	"    var result = this[0..-1]\n"+
-	"    for (element in other) {\n"+
-	"      result.add(element)\n"+
-	"    }\n"+
-	"    return result\n"+
-	"  }\n"+
-	"\n"+
-	"  *(count) {\n"+
-	"    if (!(count is Num) || !count.isInteger || count < 0) {\n"+
-	"      Fiber.abort(\"Count must be a non-negative integer.\")\n"+
-	"    }\n"+
-	"\n"+
-	"    var result = []\n"+
-	"    for (i in 0...count) {\n"+
-	"      result.addAll(this)\n"+
-	"    }\n"+
-	"    return result\n"+
-	"  }\n"+
-	"}\n"+
-	"\n"+
-	"class Map is Sequence {\n"+
-	"  keys { MapKeySequence.new(this) }\n"+
-	"  values { MapValueSequence.new(this) }\n"+
-	"\n"+
-	"  toString {\n"+
-	"    var first = true\n"+
-	"    var result = \"{\"\n"+
-	"\n"+
-	"    for (key in keys) {\n"+
-	"      if (!first) result = result + \", \"\n"+
-	"      first = false\n"+
-	"      result = result + \"%(key): %(this[key])\"\n"+
-	"    }\n"+
-	"\n"+
-	"    return result + \"}\"\n"+
-	"  }\n"+
-	"\n"+
-	"  iteratorValue(iterator) {\n"+
-	"    return MapEntry.new(\n"+
-	"        keyIteratorValue_(iterator),\n"+
-	"        valueIteratorValue_(iterator))\n"+
-	"  }\n"+
-	"}\n"+
-	"\n"+
-	"class MapEntry {\n"+
-	"  construct new(key, value) {\n"+
-	"    _key = key\n"+
-	"    _value = value\n"+
-	"  }\n"+
-	"\n"+
-	"  key { _key }\n"+
-	"  value { _value }\n"+
-	"\n"+
-	"  toString { \"%(_key):%(_value)\" }\n"+
-	"}\n"+
-	"\n"+
-	"class MapKeySequence is Sequence {\n"+
-	"  construct new(map) {\n"+
-	"    _map = map\n"+
-	"  }\n"+
-	"\n"+
-	"  iterate(n) { _map.iterate(n) }\n"+
-	"  iteratorValue(iterator) { _map.keyIteratorValue_(iterator) }\n"+
-	"}\n"+
-	"\n"+
-	"class MapValueSequence is Sequence {\n"+
-	"  construct new(map) {\n"+
-	"    _map = map\n"+
-	"  }\n"+
-	"\n"+
-	"  iterate(n) { _map.iterate(n) }\n"+
-	"  iteratorValue(iterator) { _map.valueIteratorValue_(iterator) }\n"+
-	"}\n"+
-	"\n"+
-	"class Range is Sequence {}\n"+
-	"\n"+
-	"class System {\n"+
-	"  static print() {\n"+
-	"    writeString_(\"\n\")\n"+
-	"  }\n"+
-	"\n"+
-	"  static print(obj) {\n"+
-	"    writeObject_(obj)\n"+
-	"    writeString_(\"\n\")\n"+
-	"    return obj\n"+
-	"  }\n"+
-	"\n"+
-	"  static printAll(sequence) {\n"+
-	"    for (object in sequence) writeObject_(object)\n"+
-	"    writeString_(\"\n\")\n"+
-	"  }\n"+
-	"\n"+
-	"  static write(obj) {\n"+
-	"    writeObject_(obj)\n"+
-	"    return obj\n"+
-	"  }\n"+
-	"\n"+
-	"  static writeAll(sequence) {\n"+
-	"    for (object in sequence) writeObject_(object)\n"+
-	"  }\n"+
-	"\n"+
-	"  static writeObject_(obj) {\n"+
-	"    var string = obj.toString\n"+
-	"    if (string is String) {\n"+
-	"      writeString_(string)\n"+
-	"    } else {\n"+
-	"      writeString_(\"[invalid toString]\")\n"+
-	"    }\n"+
-	"  }\n"+
-	"}\n";
+	static final coreModuleSource = "class Bool {}\n"
+		+ "class Fiber {}\n"
+		+ "class Fn {}\n"
+		+ "class Null {}\n"
+		+ "class Num {}\n"
+		+ "\n"
+		+ "class Sequence {\n"
+		+ "  all(f) {\n"
+		+ "    var result = true\n"
+		+ "    for (element in this) {\n"
+		+ "      result = f.call(element)\n"
+		+ "      if (!result) return result\n"
+		+ "    }\n"
+		+ "    return result\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  any(f) {\n"
+		+ "    var result = false\n"
+		+ "    for (element in this) {\n"
+		+ "      result = f.call(element)\n"
+		+ "      if (result) return result\n"
+		+ "    }\n"
+		+ "    return result\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  contains(element) {\n"
+		+ "    for (item in this) {\n"
+		+ "      if (element == item) return true\n"
+		+ "    }\n"
+		+ "    return false\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  count {\n"
+		+ "    var result = 0\n"
+		+ "    for (element in this) {\n"
+		+ "      result = result + 1\n"
+		+ "    }\n"
+		+ "    return result\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  count(f) {\n"
+		+ "    var result = 0\n"
+		+ "    for (element in this) {\n"
+		+ "      if (f.call(element)) result = result + 1\n"
+		+ "    }\n"
+		+ "    return result\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  each(f) {\n"
+		+ "    for (element in this) {\n"
+		+ "      f.call(element)\n"
+		+ "    }\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  isEmpty { iterate(null) ? false : true }\n"
+		+ "\n"
+		+ "  map(transformation) { MapSequence.new(this, transformation) }\n"
+		+ "\n"
+		+ "  skip(count) {\n"
+		+ "    if (!(count is Num) || !count.isInteger || count < 0) {\n"
+		+ "      Fiber.abort(\"Count must be a non-negative integer.\")\n"
+		+ "    }\n"
+		+ "\n"
+		+ "    return SkipSequence.new(this, count)\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  take(count) {\n"
+		+ "    if (!(count is Num) || !count.isInteger || count < 0) {\n"
+		+ "      Fiber.abort(\"Count must be a non-negative integer.\")\n"
+		+ "    }\n"
+		+ "\n"
+		+ "    return TakeSequence.new(this, count)\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  where(predicate) { WhereSequence.new(this, predicate) }\n"
+		+ "\n"
+		+ "  reduce(acc, f) {\n"
+		+ "    for (element in this) {\n"
+		+ "      acc = f.call(acc, element)\n"
+		+ "    }\n"
+		+ "    return acc\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  reduce(f) {\n"
+		+ "    var iter = iterate(null)\n"
+		+ "    if (!iter) Fiber.abort(\"Can't reduce an empty sequence.\")\n"
+		+ "\n"
+		+ "    // Seed with the first element.\n"
+		+ "    var result = iteratorValue(iter)\n"
+		+ "    while (iter = iterate(iter)) {\n"
+		+ "      result = f.call(result, iteratorValue(iter))\n"
+		+ "    }\n"
+		+ "\n"
+		+ "    return result\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  join() { join(\"\") }\n"
+		+ "\n"
+		+ "  join(sep) {\n"
+		+ "    var first = true\n"
+		+ "    var result = \"\"\n"
+		+ "\n"
+		+ "    for (element in this) {\n"
+		+ "      if (!first) result = result + sep\n"
+		+ "      first = false\n"
+		+ "      result = result + element.toString\n"
+		+ "    }\n"
+		+ "\n"
+		+ "    return result\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  toList {\n"
+		+ "    var result = List.new()\n"
+		+ "    for (element in this) {\n"
+		+ "      result.add(element)\n"
+		+ "    }\n"
+		+ "    return result\n"
+		+ "  }\n"
+		+ "}\n"
+		+ "\n"
+		+ "class MapSequence is Sequence {\n"
+		+ "  construct new(sequence, fn) {\n"
+		+ "    _sequence = sequence\n"
+		+ "    _fn = fn\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  iterate(iterator) { _sequence.iterate(iterator) }\n"
+		+ "  iteratorValue(iterator) { _fn.call(_sequence.iteratorValue(iterator)) }\n"
+		+ "}\n"
+		+ "\n"
+		+ "class SkipSequence is Sequence {\n"
+		+ "  construct new(sequence, count) {\n"
+		+ "    _sequence = sequence\n"
+		+ "    _count = count\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  iterate(iterator) {\n"
+		+ "    if (iterator) {\n"
+		+ "      return _sequence.iterate(iterator)\n"
+		+ "    } else {\n"
+		+ "      iterator = _sequence.iterate(iterator)\n"
+		+ "      var count = _count\n"
+		+ "      while (count > 0 && iterator) {\n"
+		+ "        iterator = _sequence.iterate(iterator)\n"
+		+ "        count = count - 1\n"
+		+ "      }\n"
+		+ "      return iterator\n"
+		+ "    }\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  iteratorValue(iterator) { _sequence.iteratorValue(iterator) }\n"
+		+ "}\n"
+		+ "\n"
+		+ "class TakeSequence is Sequence {\n"
+		+ "  construct new(sequence, count) {\n"
+		+ "    _sequence = sequence\n"
+		+ "    _count = count\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  iterate(iterator) {\n"
+		+ "    if (!iterator) _taken = 1 else _taken = _taken + 1\n"
+		+ "    return _taken > _count ? null : _sequence.iterate(iterator)\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  iteratorValue(iterator) { _sequence.iteratorValue(iterator) }\n"
+		+ "}\n"
+		+ "\n"
+		+ "class WhereSequence is Sequence {\n"
+		+ "  construct new(sequence, fn) {\n"
+		+ "    _sequence = sequence\n"
+		+ "    _fn = fn\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  iterate(iterator) {\n"
+		+ "    while (iterator = _sequence.iterate(iterator)) {\n"
+		+ "      if (_fn.call(_sequence.iteratorValue(iterator))) break\n"
+		+ "    }\n"
+		+ "    return iterator\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  iteratorValue(iterator) { _sequence.iteratorValue(iterator) }\n"
+		+ "}\n"
+		+ "\n"
+		+ "class String is Sequence {\n"
+		+ "  bytes { StringByteSequence.new(this) }\n"
+		+ "  codePoints { StringCodePointSequence.new(this) }\n"
+		+ "\n"
+		+ "  split(delimiter) {\n"
+		+ "    if (!(delimiter is String) || delimiter.isEmpty) {\n"
+		+ "      Fiber.abort(\"Delimiter must be a non-empty string.\")\n"
+		+ "    }\n"
+		+ "\n"
+		+ "    var result = []\n"
+		+ "\n"
+		+ "    var last = 0\n"
+		+ "    var index = 0\n"
+		+ "\n"
+		+ "    var delimSize = delimiter.byteCount_\n"
+		+ "    var size = byteCount_\n"
+		+ "\n"
+		+ "    while (last < size && (index = indexOf(delimiter, last)) != -1) {\n"
+		+ "      result.add(this[last...index])\n"
+		+ "      last = index + delimSize\n"
+		+ "    }\n"
+		+ "\n"
+		+ "    if (last < size) {\n"
+		+ "      result.add(this[last..-1])\n"
+		+ "    } else {\n"
+		+ "      result.add(\"\")\n"
+		+ "    }\n"
+		+ "    return result\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  replace(from, to) {\n"
+		+ "    if (!(from is String) || from.isEmpty) {\n"
+		+ "      Fiber.abort(\"From must be a non-empty string.\")\n"
+		+ "    } else if (!(to is String)) {\n"
+		+ "      Fiber.abort(\"To must be a string.\")\n"
+		+ "    }\n"
+		+ "\n"
+		+ "    var result = \"\"\n"
+		+ "\n"
+		+ "    var last = 0\n"
+		+ "    var index = 0\n"
+		+ "\n"
+		+ "    var fromSize = from.byteCount_\n"
+		+ "    var size = byteCount_\n"
+		+ "\n"
+		+ "    while (last < size && (index = indexOf(from, last)) != -1) {\n"
+		+ "      result = result + this[last...index] + to\n"
+		+ "      last = index + fromSize\n"
+		+ "    }\n"
+		+ "\n"
+		+ "    if (last < size) result = result + this[last..-1]\n"
+		+ "\n"
+		+ "    return result\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  trim() { trim_(\"\t\r\n \", true, true) }\n"
+		+ "  trim(chars) { trim_(chars, true, true) }\n"
+		+ "  trimEnd() { trim_(\"\t\r\n \", false, true) }\n"
+		+ "  trimEnd(chars) { trim_(chars, false, true) }\n"
+		+ "  trimStart() { trim_(\"\t\r\n \", true, false) }\n"
+		+ "  trimStart(chars) { trim_(chars, true, false) }\n"
+		+ "\n"
+		+ "  trim_(chars, trimStart, trimEnd) {\n"
+		+ "    if (!(chars is String)) {\n"
+		+ "      Fiber.abort(\"Characters must be a string.\")\n"
+		+ "    }\n"
+		+ "\n"
+		+ "    var codePoints = chars.codePoints.toList\n"
+		+ "\n"
+		+ "    var start\n"
+		+ "    if (trimStart) {\n"
+		+ "      while (start = iterate(start)) {\n"
+		+ "        if (!codePoints.contains(codePointAt_(start))) break\n"
+		+ "      }\n"
+		+ "\n"
+		+ "      if (start == false) return \"\"\n"
+		+ "    } else {\n"
+		+ "      start = 0\n"
+		+ "    }\n"
+		+ "\n"
+		+ "    var end\n"
+		+ "    if (trimEnd) {\n"
+		+ "      end = byteCount_ - 1\n"
+		+ "      while (end >= start) {\n"
+		+ "        var codePoint = codePointAt_(end)\n"
+		+ "        if (codePoint != -1 && !codePoints.contains(codePoint)) break\n"
+		+ "        end = end - 1\n"
+		+ "      }\n"
+		+ "\n"
+		+ "      if (end < start) return \"\"\n"
+		+ "    } else {\n"
+		+ "      end = -1\n"
+		+ "    }\n"
+		+ "\n"
+		+ "    return this[start..end]\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  *(count) {\n"
+		+ "    if (!(count is Num) || !count.isInteger || count < 0) {\n"
+		+ "      Fiber.abort(\"Count must be a non-negative integer.\")\n"
+		+ "    }\n"
+		+ "\n"
+		+ "    var result = \"\"\n"
+		+ "    for (i in 0...count) {\n"
+		+ "      result = result + this\n"
+		+ "    }\n"
+		+ "    return result\n"
+		+ "  }\n"
+		+ "}\n"
+		+ "\n"
+		+ "class StringByteSequence is Sequence {\n"
+		+ "  construct new(string) {\n"
+		+ "    _string = string\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  [index] { _string.byteAt_(index) }\n"
+		+ "  iterate(iterator) { _string.iterateByte_(iterator) }\n"
+		+ "  iteratorValue(iterator) { _string.byteAt_(iterator) }\n"
+		+ "\n"
+		+ "  count { _string.byteCount_ }\n"
+		+ "}\n"
+		+ "\n"
+		+ "class StringCodePointSequence is Sequence {\n"
+		+ "  construct new(string) {\n"
+		+ "    _string = string\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  [index] { _string.codePointAt_(index) }\n"
+		+ "  iterate(iterator) { _string.iterate(iterator) }\n"
+		+ "  iteratorValue(iterator) { _string.codePointAt_(iterator) }\n"
+		+ "\n"
+		+ "  count { _string.count }\n"
+		+ "}\n"
+		+ "\n"
+		+ "class List is Sequence {\n"
+		+ "  addAll(other) {\n"
+		+ "    for (element in other) {\n"
+		+ "      add(element)\n"
+		+ "    }\n"
+		+ "    return other\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  toString { \"[%(join(\", \"))]\" }\n"
+		+ "\n"
+		+ "  +(other) {\n"
+		+ "    var result = this[0..-1]\n"
+		+ "    for (element in other) {\n"
+		+ "      result.add(element)\n"
+		+ "    }\n"
+		+ "    return result\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  *(count) {\n"
+		+ "    if (!(count is Num) || !count.isInteger || count < 0) {\n"
+		+ "      Fiber.abort(\"Count must be a non-negative integer.\")\n"
+		+ "    }\n"
+		+ "\n"
+		+ "    var result = []\n"
+		+ "    for (i in 0...count) {\n"
+		+ "      result.addAll(this)\n"
+		+ "    }\n"
+		+ "    return result\n"
+		+ "  }\n"
+		+ "}\n"
+		+ "\n"
+		+ "class Map is Sequence {\n"
+		+ "  keys { MapKeySequence.new(this) }\n"
+		+ "  values { MapValueSequence.new(this) }\n"
+		+ "\n"
+		+ "  toString {\n"
+		+ "    var first = true\n"
+		+ "    var result = \"{\"\n"
+		+ "\n"
+		+ "    for (key in keys) {\n"
+		+ "      if (!first) result = result + \", \"\n"
+		+ "      first = false\n"
+		+ "      result = result + \"%(key): %(this[key])\"\n"
+		+ "    }\n"
+		+ "\n"
+		+ "    return result + \"}\"\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  iteratorValue(iterator) {\n"
+		+ "    return MapEntry.new(\n"
+		+ "        keyIteratorValue_(iterator),\n"
+		+ "        valueIteratorValue_(iterator))\n"
+		+ "  }\n"
+		+ "}\n"
+		+ "\n"
+		+ "class MapEntry {\n"
+		+ "  construct new(key, value) {\n"
+		+ "    _key = key\n"
+		+ "    _value = value\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  key { _key }\n"
+		+ "  value { _value }\n"
+		+ "\n"
+		+ "  toString { \"%(_key):%(_value)\" }\n"
+		+ "}\n"
+		+ "\n"
+		+ "class MapKeySequence is Sequence {\n"
+		+ "  construct new(map) {\n"
+		+ "    _map = map\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  iterate(n) { _map.iterate(n) }\n"
+		+ "  iteratorValue(iterator) { _map.keyIteratorValue_(iterator) }\n"
+		+ "}\n"
+		+ "\n"
+		+ "class MapValueSequence is Sequence {\n"
+		+ "  construct new(map) {\n"
+		+ "    _map = map\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  iterate(n) { _map.iterate(n) }\n"
+		+ "  iteratorValue(iterator) { _map.valueIteratorValue_(iterator) }\n"
+		+ "}\n"
+		+ "\n"
+		+ "class Range is Sequence {}\n"
+		+ "\n"
+		+ "class System {\n"
+		+ "  static print() {\n"
+		+ "    writeString_(\"\n\")\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  static print(obj) {\n"
+		+ "    writeObject_(obj)\n"
+		+ "    writeString_(\"\n\")\n"
+		+ "    return obj\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  static printAll(sequence) {\n"
+		+ "    for (object in sequence) writeObject_(object)\n"
+		+ "    writeString_(\"\n\")\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  static write(obj) {\n"
+		+ "    writeObject_(obj)\n"
+		+ "    return obj\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  static writeAll(sequence) {\n"
+		+ "    for (object in sequence) writeObject_(object)\n"
+		+ "  }\n"
+		+ "\n"
+		+ "  static writeObject_(obj) {\n"
+		+ "    var string = obj.toString\n"
+		+ "    if (string is String) {\n"
+		+ "      writeString_(string)\n"
+		+ "    } else {\n"
+		+ "      writeString_(\"[invalid toString]\")\n"
+		+ "    }\n"
+		+ "  }\n"
+		+ "}\n";
 
 	public function new(vm:VM) {
 		this.vm = vm;
-		
+
 		var coreModule = vm.newModule(null);
 		vm.pushRoot(cast coreModule);
 
 		// The core module's key is null in the module map.
-		vm.mapSet(vm.modules, {type:VAL_NULL, as:null}, OBJ_VAL(coreModule));
-		vm.popRoot();// coreModule.
+		vm.mapSet(vm.modules, {type: VAL_NULL, as: null}, OBJ_VAL(coreModule));
+		vm.popRoot(); // coreModule.
 
 		// Define the root Object class. This has to be done a little specially
 		// because it has no superclass.
@@ -514,14 +513,13 @@ class Core {
 		//        |                  |                    #  |
 		//   .---------.   .-------------------.          #  |
 		//   | Derived |==>| Derived metaclass |=========="  |
-		//   '---------'   '-------------------'            -'		
+		//   '---------'   '-------------------'            -'
 
 		// The rest of the classes can now be defined normally.
 		vm.interpret(null, coreModuleSource);
 		vm.boolClass = AS_CLASS(vm.findVariable(coreModule, "Bool"));
 		PRIMITIVE(vm.boolClass, "toString", bool_toString);
-		PRIMITIVE(vm.boolClass, "!", bool_not);		
-
+		PRIMITIVE(vm.boolClass, "!", bool_not);
 
 		vm.fiberClass = AS_CLASS(wrenFindVariable(vm, coreModule, "Fiber"));
 		PRIMITIVE(vm.fiberClass.obj.classObj, "new(_)", fiber_new);
@@ -558,7 +556,7 @@ class Core {
 		PRIMITIVE(vm.fnClass, "call(_,_,_,_,_,_,_,_,_,_,_,_,_)", fn_call13);
 		PRIMITIVE(vm.fnClass, "call(_,_,_,_,_,_,_,_,_,_,_,_,_,_)", fn_call14);
 		PRIMITIVE(vm.fnClass, "call(_,_,_,_,_,_,_,_,_,_,_,_,_,_,_)", fn_call15);
-		PRIMITIVE(vm.fnClass, "call(_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_)", fn_call16);  
+		PRIMITIVE(vm.fnClass, "call(_,_,_,_,_,_,_,_,_,_,_,_,_,_,_,_)", fn_call16);
 		PRIMITIVE(vm.fnClass, "toString", fn_toString);
 
 		vm.nullClass = AS_CLASS(vm.findVariable(coreModule, "Null"));
@@ -645,9 +643,8 @@ class Core {
 		PRIMITIVE(vm.listClass, "insert(_,_)", list_insert);
 		PRIMITIVE(vm.listClass, "iterate(_)", list_iterate);
 		PRIMITIVE(vm.listClass, "iteratorValue(_)", list_iteratorValue);
-		PRIMITIVE(vm.listClass, "removeAt(_)", list_removeAt);	
-		
-		
+		PRIMITIVE(vm.listClass, "removeAt(_)", list_removeAt);
+
 		vm.mapClass = AS_CLASS(vm.findVariable(coreModule, "Map"));
 		PRIMITIVE(vm.mapClass.obj.classObj, "new()", map_new);
 		PRIMITIVE(vm.mapClass, "[_]", map_subscript);
@@ -677,8 +674,9 @@ class Core {
 		PRIMITIVE(systemClass.obj.classObj, "writeString_(_)", system_writeString);
 
 		var obj = vm.first;
-		while(obj != null){
-			if (obj.type == OBJ_STRING) obj.classObj = vm.stringClass;
+		while (obj != null) {
+			if (obj.type == OBJ_STRING)
+				obj.classObj = vm.stringClass;
 			obj = vm.next;
 		}
 	}
@@ -1189,11 +1187,156 @@ class Core {
 
 	@:DEF_PRIMITIVE("map_subscript")
 	static function map_subscript(vm:VM, args:Array<Value>) {
-		if (!vm.validateKey(args[1])) return false;
+		if (!vm.validateKey(args[1]))
+			return false;
 		var map = AS_MAP(args[0]);
 		var value = vm.mapGet(map, args[1]);
-		if (IS_UNDEFINED(value)) RETURN_NULL();
+		if (IS_UNDEFINED(value))
+			return RETURN_NULL();
 		RETURN_VAL(value);
+		return false;
+	}
+
+	@:DEF_PRIMITIVE("map_subscriptSetter")
+	static function map_subscriptSetter(vm:VM, args:Array<Value>) {
+		if (!vm.validateKey(args[1]))
+			return false;
+		vm.mapSet(AS_MAP(args[0]), args[1], args[2]);
+		RETURN_VAL(args[2]);
+		return false;
+	}
+
+	/**
+	 * Adds an entry to the map and then returns the map itself. This is called by
+	 * the compiler when compiling map literals instead of using [_]=(_) to
+	 * minimize stack churn.
+	 * @param vm
+	 * @param args
+	 * @return Bool
+	 */
+	@:DEF_PRIMITIVE("map_addCore")
+	static function map_addCore(vm:VM, args:Array<Value>):Bool {
+		if (!vm.validateKey(args[1]))
+			return false;
+
+		vm.mapSet(AS_MAP(args[0]), args[1], args[2]);
+		// Return the map itself.
+		RETURN_VAL(args[0]);
+		return false;
+	}
+
+	@:DEF_PRIMITIVE("map_clear")
+	static function map_clear(vm:VM, args:Array<Value>):Bool {
+		vm.mapClear(AS_MAP(args[0]));
+		return RETURN_NULL();
+	}
+
+	@:DEF_PRIMITIVE("map_containsKey")
+	static function map_containsKey(vm:VM, args:Array<Value>):Bool {
+		if (!vm.validateKey(args[1]))
+			return false;
+
+		RETURN_BOOL(!IS_UNDEFINED(vm.mapGet(AS_MAP(args[0]), args[1])));
+		return false;
+	}
+
+	@:DEF_PRIMITIVE("map_count")
+	static function map_count(vm:VM, args:Array<Value>):Bool {
+		RETURN_NUM(AS_MAP(args[0]).count);
+		return false;
+	}
+
+	@:DEF_PRIMITIVE("map_iterate")
+	static function map_iterate(vm:VM, args:Array<Value>):Bool {
+		var map = AS_MAP(args[0]);
+		if (map.count == 0)
+			return RETURN_FALSE();
+		// If we're starting the iteration, start at the first used entry.
+		var index = 0;
+		// Otherwise, start one past the last entry we stopped at.
+		if (!IS_NULL(args[1])) {
+			if (!vm.validateInt(args[1], "Iterator"))
+				return false;
+			if (AS_NUM(args[1]) < 0)
+				return RETURN_FALSE();
+			index = AS_NUM(args[1]);
+
+			if (index >= map.capacity)
+				return RETURN_FALSE();
+			// Advance the iterator.
+			index++;
+		}
+		// Find a used entry, if any.
+		while (index < map->capacity) {
+			if (!IS_UNDEFINED(map.entries[index].key))
+				RETURN_NUM(index);
+			index++;
+		}
+		// If we get here, walked all of the entries.
+		return RETURN_FALSE();
+	}
+
+	@:DEF_PRIMITIVE("map_remove")
+	static function map_remove(vm:VM, args:Array<Value>):Bool {
+		if (!vm.validateKey(args[1]))
+			return false;
+		RETURN_VAL(vm.mapRemoveKey(AS_MAP(args[0]), args[1]));
+		return false;
+	}
+
+	@:DEF_PRIMITIVE("map_keyIteratorValue")
+	static function map_keyIteratorValue(vm:VM, args:Array<Value>):Bool {
+		var map = AS_MAP(args[0]);
+		var index = vm.validateIndex(args[1], map.capacity, "Iterator");
+		#if cpp
+		if (index == untyped __cpp__('UINT32_MAX'))
+			return false;
+		#elseif cs
+		if (index == untyped __cs__('UInt32.MaxValue'))
+			return false;
+		#else
+		if (index == 4294967295)
+			return false;
+		#end
+		var entry = map.entries[index];
+		if (IS_UNDEFINED(entry.key)) {
+			RETURN_ERROR("Invalid map iterator.");
+		}
+		RETURN_VAL(entry.key);
+		return false;
+	}
+
+	@:DEF_PRIMITIVE("map_valueIteratorValue")
+	static function map_valueIteratorValue(vm:VM, args:Array<Value>) {
+		var map = AS_MAP(args[0]);
+		var index = vm.validateIndex(args[1], map.capacity, "Iterator");
+		#if cpp
+		if (index == untyped __cpp__('UINT32_MAX'))
+			return false;
+		#elseif cs
+		if (index == untyped __cs__('UInt32.MaxValue'))
+			return false;
+		#else
+		if (index == 4294967295)
+			return false;
+		#end
+		var entry = map.entries[index];
+		if (IS_UNDEFINED(entry.key)) {
+			RETURN_ERROR("Invalid map iterator.");
+		}
+
+		RETURN_VAL(entry.value);
+	}
+
+	@:DEF_PRIMITIVE("null_not")
+	static function null_not(vm:VM, args:Array<Value>):Bool {
+		RETURN_VAL({type: VAL_NULL, as: null});
+		return false;
+	}
+
+	@:DEF_PRIMITIVE("null_toString")
+	static function null_toString(vm:VM, args:Array<Value>):Bool {
+		RETURN_VAL(CONST_STRING(vm, "null"));
 		return false;
 	}
 
@@ -1923,8 +2066,7 @@ class Core {
 	@:DEF_PRIMITIVE("system_gc")
 	static function system_gc(vm:VM, args:Array<Value>):Bool {
 		vm.collectGarbage();
-		RETURN_NULL();
-		return false;
+		return RETURN_NULL();
 	}
 
 	static function system_writeString(vm:VM, args:Array<Value>):Bool {
