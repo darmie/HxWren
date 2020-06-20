@@ -9,6 +9,7 @@ using wren.FiberTools;
 using be.Constant;
 using wren.Tools;
 using StringTools;
+using wren.Value.ValueType;
 
 @:build(wren.Macros.BuildPrimitives())
 class Core {
@@ -460,7 +461,7 @@ class Core {
 		vm.pushRoot(cast coreModule);
 
 		// The core module's key is null in the module map.
-		vm.mapSet(vm.modules, {type: VAL_NULL, as: null}, OBJ_VAL(coreModule));
+		vm.mapSet(vm.modules, new Value({type: VAL_NULL, as: null}), OBJ_VAL(coreModule));
 		vm.popRoot(); // coreModule.
 
 		// Define the root Object class. This has to be done a little specially
@@ -475,7 +476,7 @@ class Core {
 
 		// Now we can define Class, which is a subclass of Object.
 		vm.classClass = vm.defineClass(coreModule, "Class");
-		vm.bindSuperclass(vm.classClass, vm.objectClass);
+		vm.bindSuperClass(vm.classClass, vm.objectClass);
 		PRIMITIVE(vm.classClass, "name", class_name);
 		PRIMITIVE(vm.classClass, "supertype", class_supertype);
 		PRIMITIVE(vm.classClass, "toString", class_toString);
@@ -489,7 +490,7 @@ class Core {
 		vm.classClass.obj.classObj = vm.classClass;
 
 		// Do this after wiring up the metaclasses so objectMetaclass doesn't get collected.
-		vm.BindSuperclass(objectMetaclass, vm.classClass);
+		vm.bindSuperClass(objectMetaclass, vm.classClass);
 
 		PRIMITIVE(objectMetaclass, "same(_,_)", object_same);
 
@@ -521,7 +522,7 @@ class Core {
 		PRIMITIVE(vm.boolClass, "toString", bool_toString);
 		PRIMITIVE(vm.boolClass, "!", bool_not);
 
-		vm.fiberClass = AS_CLASS(wrenFindVariable(vm, coreModule, "Fiber"));
+		vm.fiberClass = AS_CLASS(vm.findVariable(coreModule, "Fiber"));
 		PRIMITIVE(vm.fiberClass.obj.classObj, "new(_)", fiber_new);
 		PRIMITIVE(vm.fiberClass.obj.classObj, "abort(_)", fiber_abort);
 		PRIMITIVE(vm.fiberClass.obj.classObj, "current", fiber_current);
@@ -677,8 +678,12 @@ class Core {
 		while (obj != null) {
 			if (obj.type == OBJ_STRING)
 				obj.classObj = vm.stringClass;
-			obj = vm.next;
+			obj = obj.next;
 		}
+	}
+
+	static function call_fn(vm:VM, args:Array<Value>, numArgs:Int):Void {
+
 	}
 
 	@:DEF_PRIMITIVE("bool_not")
@@ -707,10 +712,10 @@ class Core {
 	static function class_supertype(vm:VM, args:Array<Value>):Bool {
 		var classObj:ObjClass = AS_CLASS(args[0]);
 		// Object has no superclass.
-		if (classObj.superclass == null)
-			RETURN_VAL({type: NULL_VAL, as: null});
+		if (classObj.superClass == null)
+			RETURN_VAL({type: VAL_NULL, as: null});
 
-		RETURN_OBJ(classObj.superclass);
+		RETURN_OBJ(classObj.superClass);
 		return false;
 	}
 
@@ -727,9 +732,11 @@ class Core {
 		var closure:ObjClosure = AS_CLOSURE(args[1]);
 		if (closure.fn.arity > 1) {
 			RETURN_ERROR("Function cannot take more than one parameter.");
+			return false;
 		}
 
 		RETURN_OBJ(vm.newFiber(closure));
+		return false;
 	}
 
 	@:DEF_PRIMITIVE("fiber_abort")
@@ -785,6 +792,8 @@ class Core {
 	static function fiber_isDone(vm:VM, args:Array<Value>):Bool {
 		var runFiber = AS_FIBER(args[0]);
 		RETURN_BOOL(runFiber.numFrames == 0 || runFiber.hasError());
+
+		return false;
 	}
 
 	@:DEF_PRIMITIVE("fiber_suspend")
@@ -830,7 +839,7 @@ class Core {
 		current.state = FIBER_OTHER;
 		if (vm.fiber != null) {
 			// Make the caller's run method return null.
-			vm.fiber.stackTop[-1] = {type: NULL_VAL, as: null};
+			vm.fiber.stackTop.setValue(-1 , new Value({type: VAL_NULL, as: null}));
 		}
 		return false;
 	}
@@ -844,12 +853,12 @@ class Core {
 		current.state = FIBER_OTHER;
 		if (vm.fiber != null) {
 			// Make the caller's run method return null.
-			vm.fiber.stackTop[-1] = args[1];
+			vm.fiber.stackTop.setValue(-1, args[1]);
 			// When the yielding fiber resumes, we'll store the result of the yield
 			// call in its stack. Since Fiber.yield(value) has two arguments (the Fiber
 			// class and the value) and we only need one slot for the result, discard
 			// the other slot now.
-			current.stackTop--;
+			current.stackTop.inc();
 		}
 		return false;
 	}
@@ -986,7 +995,7 @@ class Core {
 		if (AS_NUM(args[1]) < 0)
 			RETURN_ERROR("Size cannot be negative.");
 
-		var size:Int = AS_NUM(args[1]);
+		var size:Int = Std.int(AS_NUM(args[1]));
 		var list:ObjList = vm.newList(size);
 
 		for (i in 0...size) {
@@ -1027,8 +1036,8 @@ class Core {
 
 	@:DEF_PRIMITIVE("list_clear")
 	static function list_clear(vm:VM, args:Array<Value>):Bool {
-		AS_LIST(args[0]).elements.clear(args[1]);
-		RETURN_VAL({type: VAL_NULL, as: null});
+		AS_LIST(args[0]).elements.clear();
+		RETURN_VAL(new Value({type: VAL_NULL, as: null}));
 		return false;
 	}
 
@@ -1042,7 +1051,7 @@ class Core {
 	static function list_insert(vm:VM, args:Array<Value>):Bool {
 		var list = AS_LIST(args[0]);
 		// count + 1 here so you can "insert" at the very end.
-		var index = vm.validateIndex(args[1], list.elements.count + 1, "Index");
+		var index = vm.validateIndex(args[1], list.elements.count + 1, ["Index"]);
 		#if cpp
 		if (index == untyped __cpp__('UINT32_MAX'))
 			return false;
@@ -1064,7 +1073,7 @@ class Core {
 		// If we're starting the iteration, return the first index.
 		if (IS_NULL(args[1])) {
 			if (list.elements.count == 0)
-				RETURN_VAL({type: VAL_FALSE, as: null});
+				RETURN_VAL(new Value({type: VAL_FALSE, as: null}));
 			RETURN_NUM(0);
 		}
 
@@ -1074,7 +1083,7 @@ class Core {
 		// Stop if we're out of bounds.
 		var index = AS_NUM(args[1]);
 		if (index < 0 || index >= list.elements.count - 1)
-			RETURN_VAL({type: VAL_FALSE, as: null});
+			RETURN_VAL(new Value({type: VAL_FALSE, as: null}));
 
 		// Otherwise, move to the next index.
 		RETURN_NUM(index + 1);
@@ -1084,7 +1093,7 @@ class Core {
 	@:DEF_PRIMITIVE("list_iteratorValue")
 	static function list_iteratorValue(vm:VM, args:Array<Value>):Bool {
 		var list = AS_LIST(args[0]);
-		var index = vm.validateIndex(args[1], list.elements.count, "Iterator");
+		var index = vm.validateIndex(args[1], list.elements.count, ["Iterator"]);
 		#if cpp
 		if (index == untyped __cpp__('UINT32_MAX'))
 			return false;
@@ -1102,7 +1111,7 @@ class Core {
 	@:DEF_PRIMITIVE("list_removeAt")
 	static function list_removeAt(vm:VM, args:Array<Value>):Bool {
 		var list = AS_LIST(args[0]);
-		var index = vm.validateIndex(args[1], list.elements.count, "Index");
+		var index = vm.validateIndex(args[1], list.elements.count, ["Index"]);
 		#if cpp
 		if (index == untyped __cpp__('UINT32_MAX'))
 			return false;
@@ -1121,7 +1130,7 @@ class Core {
 	static function list_subscript(vm:VM, args:Array<Value>):Bool {
 		var list = AS_LIST(args[0]);
 		if (IS_NUM(args[1])) {
-			var index = vm.validateIndex(args[1], list.elements.count, "Subscript");
+			var index = vm.validateIndex(args[1], list.elements.count, ["Subscript"]);
 			#if cpp
 			if (index == untyped __cpp__('UINT32_MAX'))
 				return false;
@@ -1138,7 +1147,7 @@ class Core {
 		if (!IS_RANGE(args[1])) {
 			RETURN_ERROR("Subscript must be a number or a range.");
 		}
-		var step:Int;
+		var step:Null<Int> = null;
 		var count = list.elements.count;
 		var start = vm.calculateRange(AS_RANGE(args[1]), count, step);
 		#if cpp
@@ -1163,7 +1172,7 @@ class Core {
 	@:DEF_PRIMITIVE("list_subscriptSetter")
 	static function list_subscriptSetter(vm:VM, args:Array<Value>):Bool {
 		var list = AS_LIST(args[0]);
-		var index = vm.validateIndex(args[1], list.elements.count, "Subscript");
+		var index = vm.validateIndex(args[1], list.elements.count, ["Subscript"]);
 		#if cpp
 		if (index == untyped __cpp__('UINT32_MAX'))
 			return false;
@@ -1192,7 +1201,7 @@ class Core {
 		var map = AS_MAP(args[0]);
 		var value = vm.mapGet(map, args[1]);
 		if (IS_UNDEFINED(value))
-			return RETURN_NULL();
+			RETURN_NULL();
 		RETURN_VAL(value);
 		return false;
 	}
@@ -1228,7 +1237,7 @@ class Core {
 	@:DEF_PRIMITIVE("map_clear")
 	static function map_clear(vm:VM, args:Array<Value>):Bool {
 		vm.mapClear(AS_MAP(args[0]));
-		return RETURN_NULL();
+		RETURN_NULL();
 	}
 
 	@:DEF_PRIMITIVE("map_containsKey")
@@ -1250,7 +1259,7 @@ class Core {
 	static function map_iterate(vm:VM, args:Array<Value>):Bool {
 		var map = AS_MAP(args[0]);
 		if (map.count == 0)
-			return RETURN_FALSE();
+			RETURN_FALSE();
 		// If we're starting the iteration, start at the first used entry.
 		var index = 0;
 		// Otherwise, start one past the last entry we stopped at.
@@ -1258,22 +1267,22 @@ class Core {
 			if (!vm.validateInt(args[1], "Iterator"))
 				return false;
 			if (AS_NUM(args[1]) < 0)
-				return RETURN_FALSE();
-			index = AS_NUM(args[1]);
+				RETURN_FALSE();
+			index = Std.int(AS_NUM(args[1]));
 
 			if (index >= map.capacity)
-				return RETURN_FALSE();
+				RETURN_FALSE();
 			// Advance the iterator.
 			index++;
 		}
 		// Find a used entry, if any.
-		while (index < map->capacity) {
+		while (index < map.capacity) {
 			if (!IS_UNDEFINED(map.entries[index].key))
 				RETURN_NUM(index);
 			index++;
 		}
 		// If we get here, walked all of the entries.
-		return RETURN_FALSE();
+		RETURN_FALSE();
 	}
 
 	@:DEF_PRIMITIVE("map_remove")
@@ -1287,7 +1296,7 @@ class Core {
 	@:DEF_PRIMITIVE("map_keyIteratorValue")
 	static function map_keyIteratorValue(vm:VM, args:Array<Value>):Bool {
 		var map = AS_MAP(args[0]);
-		var index = vm.validateIndex(args[1], map.capacity, "Iterator");
+		var index = vm.validateIndex(args[1], map.capacity, ["Iterator"]);
 		#if cpp
 		if (index == untyped __cpp__('UINT32_MAX'))
 			return false;
@@ -1309,7 +1318,7 @@ class Core {
 	@:DEF_PRIMITIVE("map_valueIteratorValue")
 	static function map_valueIteratorValue(vm:VM, args:Array<Value>) {
 		var map = AS_MAP(args[0]);
-		var index = vm.validateIndex(args[1], map.capacity, "Iterator");
+		var index = vm.validateIndex(args[1], map.capacity, ["Iterator"]);
 		#if cpp
 		if (index == untyped __cpp__('UINT32_MAX'))
 			return false;
@@ -1326,6 +1335,7 @@ class Core {
 		}
 
 		RETURN_VAL(entry.value);
+		return false;
 	}
 
 	@:DEF_PRIMITIVE("null_not")
@@ -1337,6 +1347,18 @@ class Core {
 	@:DEF_PRIMITIVE("null_toString")
 	static function null_toString(vm:VM, args:Array<Value>):Bool {
 		RETURN_VAL(CONST_STRING(vm, "null"));
+		return false;
+	}
+
+	@:DEF_PRIMITIVE("num_fromString")
+	static function num_fromString(vm:VM, args:Array<Value>):Bool {
+		if (!vm.validateString(args[1], "Argument")) return false;
+		var string = AS_STRING(args[1]);
+
+		// Corner case: Can't parse an empty string.
+		if (string.value.length == 0) RETURN_NULL();
+		
+		RETURN_NUM(Std.parseFloat(string.value));
 		return false;
 	}
 
@@ -1414,8 +1436,8 @@ class Core {
 	static function num_bitwiseAnd(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateNum(args[1], "Right operand"))
 			return false;
-		var left:Int = AS_NUM(args[0]);
-		var right:Int = AS_NUM(args[1]);
+		var left = Std.int(AS_NUM(args[0]));
+		var right = Std.int(AS_NUM(args[1]));
 		RETURN_NUM(left & right);
 		return false;
 	}
@@ -1424,8 +1446,8 @@ class Core {
 	static function num_bitwiseOr(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateNum(args[1], "Right operand"))
 			return false;
-		var left:Int = AS_NUM(args[0]);
-		var right:Int = AS_NUM(args[1]);
+		var left = Std.int(AS_NUM(args[0]));
+		var right = Std.int(AS_NUM(args[1]));
 		RETURN_NUM(left | right);
 		return false;
 	}
@@ -1434,8 +1456,8 @@ class Core {
 	static function num_bitwiseXor(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateNum(args[1], "Right operand"))
 			return false;
-		var left:Int = AS_NUM(args[0]);
-		var right:Int = AS_NUM(args[1]);
+		var left = Std.int(AS_NUM(args[0]));
+		var right = Std.int(AS_NUM(args[1]));
 		RETURN_NUM(left ^ right);
 		return false;
 	}
@@ -1444,9 +1466,10 @@ class Core {
 	static function num_bitwiseLeftShift(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateNum(args[1], "Right operand"))
 			return false;
-		var left:Int = AS_NUM(args[0]);
-		var right:Int = AS_NUM(args[1]);
-		RETURN_NUM(left << right);
+		var left = Std.int(AS_NUM(args[0]));
+		var right = Std.int(AS_NUM(args[1]));
+		var v = left << right;
+		RETURN_NUM(v);
 		return false;
 	}
 
@@ -1454,9 +1477,10 @@ class Core {
 	static function num_bitwiseRightShift(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateNum(args[1], "Right operand"))
 			return false;
-		var left:Int = AS_NUM(args[0]);
-		var right:Int = AS_NUM(args[1]);
-		RETURN_NUM(left >> right);
+		var left = Std.int(AS_NUM(args[0]));
+		var right = Std.int(AS_NUM(args[1]));
+		var v:Float = left >> right;
+		RETURN_NUM(v);
 		return false;
 	}
 
@@ -1563,14 +1587,14 @@ class Core {
 	@:DEF_PRIMITIVE("num_bangeq")
 	static function num_bangeq(vm:VM, args:Array<Value>):Bool {
 		if (!IS_NUM(args[1]))
-			RETURN_VAL({type: VAL_FALSE, as: null});
+			RETURN_VAL(new Value({type: VAL_FALSE, as: null}));
 		RETURN_BOOL(AS_NUM(args[0]) != AS_NUM(args[1]));
 		return false;
 	}
 
 	@:DEF_PRIMITIVE("num_bitwiseNot")
 	static function num_bitwiseNot(vm:VM, args:Array<Value>):Bool {
-		RETURN_NUM(~AS_NUM(args[0]));
+		RETURN_NUM(~Std.int(AS_NUM(args[0])));
 		return false;
 	}
 
@@ -1712,7 +1736,7 @@ class Core {
 		do {
 			if (baseClassObj == classObj)
 				RETURN_BOOL(true);
-			classObj = classObj.superclass;
+			classObj = classObj.superClass;
 		} while (classObj != null);
 		RETURN_BOOL(false);
 		return false;
@@ -1769,7 +1793,7 @@ class Core {
 		var range = AS_RANGE(args[0]);
 		// Special case: empty range.
 		if (range.from == range.to && !range.isInclusive)
-			return RETURN_FALSE();
+			RETURN_FALSE();
 		// Start the iteration.
 		if (IS_NULL(args[1]))
 			RETURN_NUM(range.from);
@@ -1780,14 +1804,14 @@ class Core {
 		if (range.from < range.to) {
 			iterator++;
 			if (iterator > range.to)
-				return RETURN_FALSE();
+				RETURN_FALSE();
 		} else {
 			iterator--;
 			if (iterator < range.to)
-				return RETURN_FALSE();
+				RETURN_FALSE();
 		}
 		if (!range.isInclusive && iterator == range.to)
-			return RETURN_FALSE();
+			RETURN_FALSE();
 		RETURN_NUM(iterator);
 		return false;
 	}
@@ -1795,18 +1819,19 @@ class Core {
 	@:DEF_PRIMITIVE("range_iteratorValue")
 	static function range_iteratorValue(vm:VM, args:Array<Value>) {
 		// Assume the iterator is a number so that is the value of the range.
-		RETURN_VAL(args[1]);
+		var v = args[1];
+		RETURN_VAL(v);
 		return false;
 	}
 
 	@:DEF_PRIMITIVE("range_toString")
-	static function range_toString() {
+	static function range_toString(vm:VM, args:Array<Value>) {
 		var range = AS_RANGE(args[0]);
 		var from = vm.numToString(range.from);
 		vm.pushRoot(AS_OBJ(from));
 		var to = vm.numToString(range.to);
 		vm.pushRoot(AS_OBJ(to));
-		var result = vm.stringFormat("@$@", [from, range.isInclusive ? ".." : "...", to]);
+		var result:Value = vm.stringFormat("@$@", [from, range.isInclusive ? ".." : "...", to]);
 		vm.popRoot();
 		vm.popRoot();
 		RETURN_VAL(result);
@@ -1837,6 +1862,7 @@ class Core {
 		} else if (byte > 0xff) {
 			RETURN_ERROR("Byte cannot be greater than 0xff.");
 		}
+		
 		RETURN_VAL(vm.stringFromByte(byte));
 		return false;
 	}
@@ -1844,7 +1870,7 @@ class Core {
 	@:DEF_PRIMITIVE("string_byteAt")
 	static function string_byteAt(vm:VM, args:Array<Value>):Bool {
 		var string = AS_STRING(args[0]);
-		var index = vm.validateIndex(args[1], string.length, "Index");
+		var index = vm.validateIndex(args[1], string.value.length, ["Index"]);
 		#if cpp
 		if (index == untyped __cpp__('UINT32_MAX'))
 			return false;
@@ -1855,19 +1881,26 @@ class Core {
 		if (index == 4294967295)
 			return false;
 		#end
-		RETURN_NUM(string.value.charAt(index));
+		RETURN_NUM(string.value.charCodeAt(index));
 		return false;
 	}
 
+	@:DEF_PRIMITIVE("string_plus")
+	static function string_plus(vm:VM, args:Array<Value>){
+		if (!vm.validateString(args[1], "Right operand")) return false;
+		RETURN_VAL(vm.stringFormat("@@", [args[0], args[1]]));
+	}
+
+	@:DEF_PRIMITIVE("string_byteCount")
 	static function string_byteCount(vm:VM, args:Array<Value>):Bool {
-		RETURN_NUM(AS_STRING(args[0]).length);
+		RETURN_NUM(AS_STRING(args[0]).value.length);
 		return false;
 	}
 
 	@:DEF_PRIMITIVE("string_codePointAt")
 	static function string_codePointAt(vm:VM, args:Array<Value>):Bool {
 		var string = AS_STRING(args[0]);
-		var index = vm.validateIndex(args[1], string.length, "Index");
+		var index = vm.validateIndex(args[1], string.value.length, ["Index"]);
 		#if cpp
 		if (index == untyped __cpp__('UINT32_MAX'))
 			return false;
@@ -1884,7 +1917,7 @@ class Core {
 		// if ((bytes.get(index) & 0xc0) == 0x80) RETURN_NUM(-1);
 		// // Decode the UTF-8 sequence.
 
-		RETURN_NUM(string.value.fastCodeAt(string.length - index));
+		RETURN_NUM(string.value.fastCodeAt(string.value.length - index));
 		return false;
 	}
 
@@ -1895,7 +1928,7 @@ class Core {
 		var string = AS_STRING(args[0]);
 		var search = AS_STRING(args[1]);
 
-		RETURN_BOOL(string.value.contains(search));
+		RETURN_BOOL(string.value.contains(search.value));
 		return false;
 	}
 
@@ -1906,7 +1939,7 @@ class Core {
 		var string = AS_STRING(args[0]);
 		var search = AS_STRING(args[1]);
 
-		RETURN_BOOL(string.value.endsWith(search));
+		RETURN_BOOL(string.value.endsWith(search.value));
 		return false;
 	}
 
@@ -1917,7 +1950,7 @@ class Core {
 		var string = AS_STRING(args[0]);
 		var search = AS_STRING(args[1]);
 
-		RETURN_NUM(string.value.indexOf(search));
+		RETURN_NUM(string.value.indexOf(search.value));
 		return false;
 	}
 
@@ -1927,7 +1960,7 @@ class Core {
 			return false;
 		var string = AS_STRING(args[0]);
 		var search = AS_STRING(args[1]);
-		var start = vm.validateIndex(args[2], string.length, "Start");
+		var start = vm.validateIndex(args[2], string.value.length, ["Start"]);
 		#if cpp
 		if (start == untyped __cpp__('UINT32_MAX'))
 			return false;
@@ -1939,7 +1972,7 @@ class Core {
 			return false;
 		#end
 
-		RETURN_NUM(string.value.indexOf(search, start));
+		RETURN_NUM(string.value.indexOf(search.value, start));
 		return false;
 	}
 
@@ -1948,24 +1981,24 @@ class Core {
 		var string = AS_STRING(args[0]);
 		// If we're starting the iteration, return the first index.
 		if (IS_NULL(args[1])) {
-			if (string.length == 0)
-				return RETURN_FALSE();
+			if (string.value.length == 0)
+				RETURN_FALSE();
 			RETURN_NUM(0);
 		}
 
 		if (!vm.validateInt(args[1], "Iterator"))
 			return false;
 		if (AS_NUM(args[1]) < 0)
-			return RETURN_FALSE();
+			RETURN_FALSE();
 
-		var index = AS_NUM(args[1]);
+		var index = Std.int(AS_NUM(args[1]));
 
 		// Advance to the beginning of the next UTF-8 sequence.
 		do {
 			index++;
-			if (index >= string.length)
-				return RETURN_FALSE();
-		} while ((string.value.charAt(index) & 0xc0) == 0x80);
+			if (index >= string.value.length)
+				RETURN_FALSE();
+		} while ((string.value.charCodeAt(index) & 0xc0) == 0x80);
 
 		RETURN_NUM(index);
 		return false;
@@ -1976,22 +2009,22 @@ class Core {
 		var string = AS_STRING(args[0]);
 		// If we're starting the iteration, return the first index.
 		if (IS_NULL(args[1])) {
-			if (string.length == 0)
-				return RETURN_FALSE();
+			if (string.value.length == 0)
+				RETURN_FALSE();
 			RETURN_NUM(0);
 		}
 
 		if (!vm.validateInt(args[1], "Iterator"))
 			return false;
 		if (AS_NUM(args[1]) < 0)
-			return RETURN_FALSE();
+			RETURN_FALSE();
 
 		var index = AS_NUM(args[1]);
 
 		// Advance to the next byte.
 		index++;
-		if (index >= string.length)
-			return RETURN_FALSE();
+		if (index >= string.value.length)
+			RETURN_FALSE();
 
 		RETURN_NUM(index);
 		return false;
@@ -2000,7 +2033,7 @@ class Core {
 	@:DEF_PRIMITIVE("string_iteratorValue")
 	static function string_iteratorValue(vm:VM, args:Array<Value>):Bool {
 		var string = AS_STRING(args[0]);
-		var start = vm.validateIndex(args[1], string.length, "Index");
+		var index = vm.validateIndex(args[1], string.value.length, ["Index"]);
 		#if cpp
 		if (index == untyped __cpp__('UINT32_MAX'))
 			return false;
@@ -2023,7 +2056,7 @@ class Core {
 		var string = AS_STRING(args[0]);
 		var search = AS_STRING(args[1]);
 
-		RETURN_BOOL(string.value.startsWith(search));
+		RETURN_BOOL(string.value.startsWith(search.value));
 		return false;
 	}
 
@@ -2031,7 +2064,7 @@ class Core {
 	static function string_subscript(vm:VM, args:Array<Value>):Bool {
 		var string = AS_STRING(args[0]);
 		if (IS_NUM(args[1])) {
-			var index = vm.validateIndex(args[1], string.length, "Subscript");
+			var index = vm.validateIndex(args[1], string.value.length, ["Subscript"]);
 			if (index == -1)
 				return false;
 
@@ -2041,8 +2074,8 @@ class Core {
 			RETURN_ERROR("Subscript must be a number or a range.");
 		}
 
-		var step:Int;
-		var count = string.length;
+		var step:Null<Int> = null;
+		var count = string.value.length;
 		var start = vm.calculateRange(AS_RANGE(args[1]), count, step);
 		if (start == -1)
 			return false;
@@ -2057,8 +2090,9 @@ class Core {
 		return false;
 	}
 
+	@:DEF_PRIMITIVE("system_clock")
 	static function system_clock(vm:VM, args:Array<Value>):Bool {
-		var time = Sys.time();
+		var time:Float = Sys.time();
 		RETURN_NUM(time);
 		return false;
 	}
@@ -2066,14 +2100,16 @@ class Core {
 	@:DEF_PRIMITIVE("system_gc")
 	static function system_gc(vm:VM, args:Array<Value>):Bool {
 		vm.collectGarbage();
-		return RETURN_NULL();
+		RETURN_NULL();
 	}
 
+	@:DEF_PRIMITIVE("system_writeString")
 	static function system_writeString(vm:VM, args:Array<Value>):Bool {
 		if (vm.config.writeFn != null) {
-			vm.config.writeFn(AS_STRING(args[1]).value);
+			vm.config.writeFn(vm, AS_STRING(args[1]).value);
 		}
-		RETURN_VAL(args[1]);
+		var v:Value = args[1];
+		RETURN_VAL(v);
 		return false;
 	}
 }

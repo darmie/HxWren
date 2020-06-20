@@ -2,6 +2,7 @@ package ;
 
 import wren.VM;
 import wren.Core;
+import wren.Macros.UNREACHABLE;
 
 
 /**
@@ -13,12 +14,13 @@ class Main {
 	}
 
 	public function new() {
-		trace(getVal(["boy"]));
+		// trace(getVal(["boy"]));
+		UNREACHABLE();
 	}
 
 	function getVal(args:Array<String>):Bool {
-		var vm = new VM(); 
-		var core = new Core(vm);
+		// var vm = new VM(); 
+		// var core = new Core(vm);
 		return false;
 	}
 }

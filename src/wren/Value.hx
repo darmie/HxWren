@@ -18,8 +18,8 @@ typedef TValue = {
 }
 
 @:forward(type, as)
-abstract Value(TValue) {
-    inline function new(?v:TValue) {
+abstract Value(TValue) from TValue to TValue {
+    public inline function new(?v:TValue) {
         this = v == null ? {type:VAL_NULL, as: null} : v;
     }
 

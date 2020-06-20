@@ -28,6 +28,13 @@ class VM {
 	 * whose key is null) for the module's name and the value is the ObjModule
 	 * for the module.
 	 */
+	public var modules:ObjMap;
+
+	/**
+	 * The loaded modules. Each key is an ObjString (except for the main module,
+	 * whose key is null) for the module's name and the value is the ObjModule
+	 * for the module.
+	 */
 	public var lastModule:ObjModule;
 
 	/**
@@ -90,7 +97,7 @@ class VM {
 	 */
 	public var apiStack:Value;
 
-	public var configuration:WrenConfiguration;
+	public var config:WrenConfiguration;
 
 	/**
 	 * Compiler and debugger data:
@@ -185,7 +192,11 @@ class VM {
 	 */
 	public function collectGarbage() {}
 
-	public function newStringLength(text:String) {}
+	public function newStringLength(text:String):Value return null;
+
+	public function validateString(value:Value, argName:String):Bool {
+		return false;
+	}
 
 	public function allocateString(text:String) {}
 
@@ -214,7 +225,11 @@ class VM {
 	 * @param argName
 	 * @return Bool
 	 */
-	public static function validateInt(arg:Value, argName:String):Bool {
+	public function validateInt(arg:Value, argName:String):Bool {
+		return false;
+	}
+
+	public function validateNum(arg:Value, argName:String):Bool {
 		return false;
 	}
 
@@ -228,7 +243,7 @@ class VM {
 	 * @param argNames
 	 * @return Int
 	 */
-	public function validateIndex(arg:Value, count:Int, argNames:Array<Value>):Int {
+	public function validateIndex(arg:Value, count:Int, argNames:Array<String>):Int {
 		return 0;
 	}
 
@@ -302,7 +317,13 @@ class VM {
 	 * Creates a new string containing the UTF-8 encoding of [value].
 	 * @param value
 	 */
-	public function stringFromCodePoint(value:Int) {}
+	public function stringFromCodePoint(value:Int):Value return null;
+
+	/**
+	 * Creates a new string from the integer representation of a byte
+	 * @param value 
+	 */
+	public function stringFromByte(value:Int):Value return null;
 
 	/**
 	 * Creates a new string containing the code point in [string] starting at byte
@@ -409,4 +430,11 @@ class VM {
 	public function bindSuperClass(subclass:ObjClass, superclass:ObjClass) {}
 
 	public function interpret(module:String, source:String) {}
+
+	public function findVariable(module:ObjModule, variable:String):Value  return null;
+
+
+	public function newFiber(closure:ObjClosure):ObjFiber {
+		return null;
+	}
 }

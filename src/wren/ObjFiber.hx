@@ -18,7 +18,7 @@ typedef ObjFiber = {
     /**
      * A pointer to one past the top-most value on the stack.
      */
-    var stackTop:Value;
+    var stackTop:Pointer<Value>;
     /**
      * The number of allocated slots in the stack array.
      */

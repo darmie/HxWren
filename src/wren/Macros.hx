@@ -7,22 +7,133 @@ import haxe.io.Path;
 import haxe.macro.Type;
 import haxe.macro.ExprTools;
 import wren.Value;
+using haxe.macro.ExprTools;
 
 class Macros {
-	macro static public function RETURN_VAL(value:Expr):Expr {
-		var locals = Context.getLocalVars();
-		var exprs:Expr = null;
-		for (local in locals.keys()) {
-			if (local == "args") {
-				exprs = macro $i{local}[0] = $value;
-				break;
-			}
-		}
+	/**
+	 * The maximum number of module-level variables that may be defined at one time.
+	 * This limitation comes from the 16 bits used for the arguments to
+	 * `CODE_LOAD_MODULE_VAR` and `CODE_STORE_MODULE_VAR`.
+	 */
+	public static final MAX_MODULE_VARS = 65536;
 
-		return macro do {
-			$b{[exprs]};
+	/**
+	 * The maximum number of arguments that can be passed to a method. Note that
+	 * this limitation is hardcoded in other places in the VM, in particular, the
+	 * `CODE_CALL_XX` instructions assume a certain maximum number.
+	 */
+	public static final MAX_PARAMETERS = 16;
+
+	/**
+	 * The maximum name of a method, not including the signature. This is an
+	 * arbitrary but enforced maximum just so we know how long the method name
+	 * strings need to be in the parser.
+	 */
+	public static final MAX_METHOD_NAME = 64;
+
+	/**
+	 * The maximum length of a method signature. Signatures look like:
+	 * ```
+	 *      foo        // Getter.
+	 *      foo()      // No-argument method.
+	 *      foo(_)     // One-argument method.
+	 *      foo(_,_)   // Two-argument method.
+	 *      init foo() // Constructor initializer.
+	 * ```
+	 * The maximum signature length takes into account the longest method name, the
+	 * maximum number of parameters with separators between them, "init ", and "()".
+	 */
+	public static final MAX_METHOD_SIGNATURE = (MAX_METHOD_NAME + (MAX_PARAMETERS * 2) + 6);
+
+	/**
+	 * The maximum length of an identifier. The only real reason for this limitation
+	 * is so that error messages mentioning variables can be stack allocated.
+	 */
+	public static final MAX_VARIABLE_NAME = 64;
+
+	/**
+	 * The maximum number of fields a class can have, including inherited fields.
+	 * This is explicit in the bytecode since `CODE_CLASS` and `CODE_SUBCLASS` take
+	 * a single byte for the number of fields. Note that it's 255 and not 256
+	 * because creating a class takes the *number* of fields, not the *highest
+	 * field index*.
+	 */
+	public static final MAX_FIELDS = 255;
+
+	macro static public function RETURN_VAL(value:Expr):Expr {
+		var pos = Context.currentPos();
+		var exp = macro $i{'args'}[0] = $value;
+		var body = macro do {
+			$exp;
 			return true;
 		} while (true);
+
+		return body;
+	}
+
+	macro static public function RETURN_NULL():Expr {
+		// var args = macro $i{Context.getLocalVars()[1]};
+		var pos = Context.currentPos();
+		
+		return macro do {
+			$i{"args"}[0] = new Value({type: VAL_NULL, as: null});
+			return true;
+		} while (true);
+	}
+
+	macro static public function RETURN_TRUE():Expr {
+		// var args = macro $i{Context.getLocalVars()[1]};
+		var pos = Context.currentPos();
+		
+		return macro do {
+			$i{"args"}[0] = new Value({type: VAL_TRUE, as: null});
+			return true;
+		} while (true);
+	}
+
+	macro static public function RETURN_FALSE():Expr {
+		// var args = macro $i{Context.getLocalVars()[1]};
+		var pos = Context.currentPos();
+		
+		return macro do {
+			$i{"args"}[0] = new Value({type: VAL_FALSE, as: null});
+			return true;
+		} while (true);
+	}
+
+	macro static public function ASSERT(condition:Expr, message:Expr):Expr {
+		var s:String = condition.toString();
+		var p = condition.pos;
+		var el = [];
+		var descs = [];
+		function add(e:Expr, s:String) {
+			var v = "_tmp" + el.length;
+			el.push(macro var $v = $e);
+			descs.push(s);
+			return v;
+		}
+		function map(e:Expr) {
+			return switch (e.expr) {
+				case EConst((CInt(_) | CFloat(_) | CString(_) | CRegexp(_) | CIdent("true" | "false" | "null"))):
+					e;
+				case _:
+					var s = e.toString();
+					e = e.map(map);
+					macro $i{add(e, s)};
+			}
+		}
+		var e = map(condition);
+		var a = [for (i in 0...el.length) macro {expr: $v{descs[i]}, value: $i{"_tmp" + i}}];
+		el.push(macro if (!$e)
+			@:pos(p) throw new Assert.AssertionFailure($message, $a{a}));
+		return macro $b{el};
+	}
+
+	macro static public function UNREACHABLE() {
+		var fun = Context.getLocalMethod();
+		var pos = Context.currentPos();
+		var cls = Context.getLocalClass();
+		return macro throw 'ERROR: $cls:$pos This code should not be reached in $fun()';
 	}
 
 	macro static public function RETURN_ERROR(msg:Expr):Expr {
@@ -111,27 +222,24 @@ class Macros {
 		return fields;
 	}
 
-	static public final RETURN_FALSE = () -> {
-		RETURN_VAL({type: VAL_FALSE, as: null});
-		return false;
-	};
+	// static public final RETURN_FALSE = () -> {
+	// 	RETURN_VAL({type: VAL_FALSE, as: null});
+	// 	return false;
+	// };
 
-	static public final RETURN_TRUE = () -> {
-		RETURN_VAL({type: VAL_TRUE, as: null});
-		return false;
-	};
+	// static public final RETURN_TRUE = () -> {
+	// 	RETURN_VAL({type: VAL_TRUE, as: null});
+	// 	return false;
+	// };
 
-	static public final RETURN_NULL = () -> {
-		RETURN_VAL({type: VAL_NULL, as: null});
-		return false;
-	};
+
 
 	static public inline function OBJ_VAL(obj:Obj):Value {
 		var toVal:Value = obj;
 		return toVal;
 	}
 
-	static public inline function NUM_VAL(val:Int):Value {
+	static public inline function NUM_VAL(val:Float):Value {
 		var toVal:Value = val;
 		return toVal;
 	}
@@ -188,20 +296,55 @@ class Macros {
 		return value.isUndefined();
 	}
 
-	static public inline function RETURN_OBJ(value:Value)
-		return RETURN_VAL(OBJ_VAL(value));
+	static public inline function IS_NULL(value:Value):Bool {
+		return value.isNull();
+	}
 
-	static public inline function RETURN_NUM(value:Int)
-		return RETURN_VAL(NUM_VAL(value));
+	static public inline function IS_NUM(value:Value):Bool {
+		return value.isNum();
+	}
+
+	macro static public function RETURN_OBJ(value:Expr):Expr {
+		var pos = Context.currentPos();
+		var exp = macro $i{'args'}[0] = OBJ_VAL($value);
+		var body = macro do {
+			$exp;
+			return true;
+		} while (true);
+
+		return body;
+	}
+
+	macro static public function RETURN_NUM(value:Expr):Expr {
+		var pos = Context.currentPos();
+		var exp = macro $i{'args'}[0] = NUM_VAL($value);
+		var body = macro do {
+			$exp;
+			return true;
+		} while (true);
+
+		return body;
+	}
+		
 
 	static public inline function BOOL_VAL(b:Bool):Value
-		return b ? {type: VAL_TRUE, as: null} : {type: VAL_FALSE, as: null};
+		return b ? new Value({type: VAL_TRUE, as: null}) : new Value({type: VAL_FALSE, as: null});
 
 	static public inline function AS_BOOL(value:Value)
 		return value.type == VAL_TRUE;
 
-	static public inline function RETURN_BOOL(value:Bool)
-		return RETURN_VAL(BOOL_VAL(value));
+	macro static public function RETURN_BOOL(value:Expr):Expr {
+		var pos = Context.currentPos();
+		var exp = macro $i{'args'}[0] = BOOL_VAL($value);
+		var body = macro do {
+			$exp;
+			return true;
+		} while (true);
+
+		return body;
+	}
+
+		
 
 	static public inline function CONST_STRING(vm:VM, text:String) {
 		return vm.newStringLength(text);
@@ -213,18 +356,44 @@ class Macros {
 	 * @return T
 	 */
 	public static inline function ALLOCATE<T>(vm:VM):T {
-		return VM.reallocate<T>(vm);
+		return null;
 	}
 
 	public static inline function ALLOCATE_FLEX<T1, T2>(vm:VM):T1 {
-		return VM.reallocate<T>(vm);
+		return null;
 	}
 
-	public static inline function ALLOCATE_ARRAY<T1>(vm:VM):T1 {
-		return VM.reallocate<T>(vm);
+	public static inline function ALLOCATE_ARRAY<T>(vm:VM):T {
+		return null;
 	}
 
 	public static inline function DEALLOCATE<T>(vm:VM, val:T):T {
-		return VM.reallocate<T>(vm);
+		return null;
 	}
 }
+
+private typedef AssertionPart = {
+	expr:String,
+	value:Dynamic
+}
+
+class AssertionFailure {
+	public var message(default, null):String;
+	public var parts(default, null):Array<AssertionPart>;
+
+	public function new(message:String, parts:Array<AssertionPart>) {
+		this.message = message;
+		this.parts = parts;
+	}
+
+	public function toString() {
+		var buf = new StringBuf();
+		buf.add("Assertion failure: " + message);
+		for (part in parts) {
+			buf.add("\n\t" + part.expr + ": " + part.value);
+		}
+		return buf.toString();
+	}
+}
+
+

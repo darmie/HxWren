@@ -1,5 +1,7 @@
 package wren;
 
+using wren.WrenFn;
+
 typedef Method = {
     ?type: MethodType,
     ?as:{
