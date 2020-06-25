@@ -5,7 +5,7 @@ import wren.Value;
 
 typedef IntBuffer = Buffer<Int>;
 typedef ByteBuffer = IntBuffer;
-typedef StringBuffer = Buffer<Int>;
+typedef StringBuffer = Buffer<ObjString>;
 typedef ValueBuffer = Buffer<Value>;
 typedef MethodBuffer = Buffer<Method>;
 

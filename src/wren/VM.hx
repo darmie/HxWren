@@ -1,6 +1,6 @@
 package wren;
 
-
+import wren.Buffer.StringBuffer;
 import wren.Core.*;
 import wren.WrenFn.WrenReallocateFn;
 import wren.Buffer.ValueBuffer;
@@ -9,9 +9,6 @@ import wren.Macros.*;
 import wren.Macros.ASSERT;
 import wren.Macros.AssertionFailure;
 import haxe.ds.Vector;
-
-
-
 
 class VM {
 	public var boolClass:ObjClass;
@@ -180,13 +177,44 @@ class VM {
 
 	function defaultReallocate(ptr:Pointer<Dynamic>, newSize:Int) {}
 
-	public function symbolTableEnsure(symbols:SymbolTable, name:String, length:Int):Int {
-		trace(symbols, name, length);
-		return 1;
+	public function symbolTableEnsure(symbols:SymbolTable, name:ObjString, length:Int):Int {
+		// See if the symbol is already defined.
+		var existing = symbolTableFind(symbols, name, length);
+		if (existing != -1)
+			return existing;
+
+		// New symbol, so add it.
+		return symbolTableAdd(symbols, name, length);
 	}
 
-	public function bindMethod(objectClass:ObjClass, symbol:Int, method:Method) {
-		trace(objectClass, symbol, method);
+	public function symbolTableAdd(symbols:SymbolTable, name:ObjString, length:Int):Int {
+		var symbol = AS_STRING(newStringLength(name));
+		pushRoot(symbol.obj);
+		symbols.write(symbol);
+		popRoot();
+
+		return symbols.count - 1;
+	}
+
+	public function symbolTableFind(symbols:SymbolTable, name:ObjString, length:Int):Int {
+		for (i in 0...symbols.count) {
+			if (symbols.data[i] == name) {
+				return i;
+			}
+		}
+		return -1;
+	}
+
+	public function bindMethod(classObj:ObjClass, symbol:Int, method:Method) {
+		// Make sure the buffer is big enough to contain the symbol's index.
+		if (symbol >= classObj.methods.count) {
+			var noMethod:Method = {};
+			noMethod.type = METHOD_NONE;
+
+			classObj.methods.fill(noMethod, symbol - classObj.methods.count + 1);
+		}
+
+		classObj.methods.data[symbol] = method;
 	}
 
 	/**
@@ -200,6 +228,26 @@ class VM {
 	 * @return ObjClass
 	 */
 	public function getClass(value:Value):ObjClass {
+		if (IS_NUM(value))
+			return this.numClass;
+		if (value.isObj())
+			return AS_OBJ(value).classObj;
+
+		switch (value.type) {
+			case VAL_FALSE:
+				return this.boolClass;
+			case VAL_NULL:
+				return this.nullClass;
+			case VAL_NUM:
+				return this.numClass;
+			case VAL_TRUE:
+				return this.boolClass;
+			case VAL_OBJ:
+				return AS_OBJ(value).classObj;
+			case VAL_UNDEFINED:
+				UNREACHABLE();
+		}
+		UNREACHABLE();
 		return null;
 	}
 

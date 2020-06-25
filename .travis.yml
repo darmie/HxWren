@@ -12,10 +12,10 @@ matrix:
     - haxe: development
 
 install:
-  - npm lix install gh:skial/min-max
+  - npm run lix install gh:skial/min-max
 
 script:
-  - npm lix use haxe $TRAVIS_HAXE_VERSION
+  - npm run lix use haxe $TRAVIS_HAXE_VERSION
   - npm run haxe build.hxml
 
 
