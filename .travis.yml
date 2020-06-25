@@ -12,7 +12,7 @@ matrix:
     - haxe: development
 
 install:
-  - yes | haxelib install all
+  - lix install gh:skial/min-max
 
 script:
   - npm lix use haxe $TRAVIS_HAXE_VERSION
