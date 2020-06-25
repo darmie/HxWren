@@ -11,11 +11,10 @@ using wren.Tools;
 using StringTools;
 using wren.Value.ValueType;
 
-@:build(wren.Macros.BuildPrimitives())
-class Core {
-	var vm:VM;
 
-	static final coreModuleSource = "class Bool {}\n"
+// @:build(wren.Macros.BuildPrimitives())
+class Core {
+	public static var coreModuleSource:String = "class Bool {}\n"
 		+ "class Fiber {}\n"
 		+ "class Fn {}\n"
 		+ "class Null {}\n"
@@ -454,9 +453,7 @@ class Core {
 		+ "  }\n"
 		+ "}\n";
 
-	public function new(vm:VM) {
-		this.vm = vm;
-
+	public static function initCore(vm:VM) {
 		var coreModule = vm.newModule(null);
 		vm.pushRoot(cast coreModule);
 
@@ -672,7 +669,7 @@ class Core {
 		var systemClass:ObjClass = AS_CLASS(vm.findVariable(coreModule, "System"));
 		PRIMITIVE(systemClass.obj.classObj, "clock", system_clock);
 		PRIMITIVE(systemClass.obj.classObj, "gc()", system_gc);
-		PRIMITIVE(systemClass.obj.classObj, "writeString_(_)", system_writeString);
+		PRIMITIVE(systemClass.obj.classObj, "writeString_(_)", Core.system_writeString);
 
 		var obj = vm.first;
 		while (obj != null) {
@@ -682,18 +679,16 @@ class Core {
 		}
 	}
 
-	static function call_fn(vm:VM, args:Array<Value>, numArgs:Int):Void {
+	public static function call_fn(vm:VM, args:Array<Value>, numArgs:Int):Void {}
 
-	}
-
-	@:DEF_PRIMITIVE("bool_not")
-	static function bool_not(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("bool_not")
+	public static function prim_bool_not(vm:VM, args:Array<Value>):Bool {
 		RETURN_BOOL(!AS_BOOL(args[0]));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("bool_toString")
-	static function bool_toString(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("bool_toString")
+	public static function prim_bool_toString(vm:VM, args:Array<Value>):Bool {
 		if (AS_BOOL(args[0])) {
 			RETURN_VAL(CONST_STRING(vm, "true"));
 		} else {
@@ -702,14 +697,14 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("class_name")
-	static function class_name(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("class_name")
+	public static function prim_class_name(vm:VM, args:Array<Value>):Bool {
 		RETURN_OBJ(AS_CLASS(args[0]).name);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("class_supertype")
-	static function class_supertype(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("class_supertype")
+	public static function prim_class_supertype(vm:VM, args:Array<Value>):Bool {
 		var classObj:ObjClass = AS_CLASS(args[0]);
 		// Object has no superclass.
 		if (classObj.superClass == null)
@@ -719,19 +714,19 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("class_toString")
-	static function class_toString(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("class_toString")
+	public static function prim_class_toString(vm:VM, args:Array<Value>):Bool {
 		RETURN_OBJ(AS_CLASS(args[0]).name);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fiber_new")
-	static function fiber_new(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fiber_new")
+	public static function prim_fiber_new(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateFn(args[1], "Argument"))
 			return false;
 		var closure:ObjClosure = AS_CLOSURE(args[1]);
 		if (closure.fn.arity > 1) {
-			RETURN_ERROR("Function cannot take more than one parameter.");
+			RETURN_ERROR("function prim_cannot take more than one parameter.");
 			return false;
 		}
 
@@ -739,8 +734,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fiber_abort")
-	static function fiber_abort(vm:VM, args:Array<Value>) {
+	// @:DEF_PRIMITIVE("fiber_abort")
+	public static function prim_fiber_abort(vm:VM, args:Array<Value>) {
 		vm.fiber.error = args[1];
 		// If the error is explicitly null, it's not really an abort.
 		return args[1].isNull();
@@ -762,67 +757,67 @@ class Core {
 	 * @param verb
 	 * @return Bool
 	 */
-	static function runFiber(vm:VM, fiber:ObjFiber, args:Array<Value>, isCall:Bool, hasValue:Bool, verb:String):Bool {
+	public static function runFiber(vm:VM, fiber:ObjFiber, args:Array<Value>, isCall:Bool, hasValue:Bool, verb:String):Bool {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fiber_call")
-	static function fiber_call(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fiber_call")
+	public static function prim_fiber_call(vm:VM, args:Array<Value>):Bool {
 		return runFiber(vm, AS_FIBER(args[0]), args, true, false, "call");
 	}
 
-	@:DEF_PRIMITIVE("fiber_call1")
-	static function fiber_call1(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fiber_call1")
+	public static function prim_fiber_call1(vm:VM, args:Array<Value>):Bool {
 		return runFiber(vm, AS_FIBER(args[0]), args, true, true, "call");
 	}
 
-	@:DEF_PRIMITIVE("fiber_current")
-	static function fiber_current(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fiber_current")
+	public static function prim_fiber_current(vm:VM, args:Array<Value>):Bool {
 		RETURN_OBJ(vm.fiber);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fiber_error")
-	static function fiber_error(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fiber_error")
+	public static function prim_fiber_error(vm:VM, args:Array<Value>):Bool {
 		RETURN_VAL(AS_FIBER(args[0]).error);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fiber_isDone")
-	static function fiber_isDone(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fiber_isDone")
+	public static function prim_fiber_isDone(vm:VM, args:Array<Value>):Bool {
 		var runFiber = AS_FIBER(args[0]);
 		RETURN_BOOL(runFiber.numFrames == 0 || runFiber.hasError());
 
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fiber_suspend")
-	static function fiber_suspend(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fiber_suspend")
+	public static function prim_fiber_suspend(vm:VM, args:Array<Value>):Bool {
 		// Switching to a null fiber tells the interpreter to stop and exit.
 		vm.fiber = null;
 		vm.apiStack = null;
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fiber_transfer")
-	static function fiber_transfer(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fiber_transfer")
+	public static function prim_fiber_transfer(vm:VM, args:Array<Value>):Bool {
 		return runFiber(vm, AS_FIBER(args[0]), args, false, false, "transfer to");
 	}
 
-	@:DEF_PRIMITIVE("fiber_transfer1")
-	static function fiber_transfer1(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fiber_transfer1")
+	public static function prim_fiber_transfer1(vm:VM, args:Array<Value>):Bool {
 		return runFiber(vm, AS_FIBER(args[0]), args, false, true, "transfer to");
 	}
 
-	@:DEF_PRIMITIVE("fiber_transferError")
-	static function fiber_transferError(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fiber_transferError")
+	public static function prim_fiber_transferError(vm:VM, args:Array<Value>):Bool {
 		runFiber(vm, AS_FIBER(args[0]), args, false, true, "transfer to");
 		vm.fiber.error = args[1];
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fiber_try")
-	static function fiber_try(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fiber_try")
+	public static function prim_fiber_try(vm:VM, args:Array<Value>):Bool {
 		runFiber(vm, AS_FIBER(args[0]), args, true, false, "try");
 		// If we're switching to a valid fiber to try, remember that we're trying it.
 		if (!vm.fiber.hasError())
@@ -830,8 +825,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fiber_yield")
-	static function fiber_yield(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fiber_yield")
+	public static function prim_fiber_yield(vm:VM, args:Array<Value>):Bool {
 		var current = vm.fiber;
 		vm.fiber = current.caller;
 		// Unhook this fiber from the one that called it.
@@ -839,13 +834,13 @@ class Core {
 		current.state = FIBER_OTHER;
 		if (vm.fiber != null) {
 			// Make the caller's run method return null.
-			vm.fiber.stackTop.setValue(-1 , new Value({type: VAL_NULL, as: null}));
+			vm.fiber.stackTop.setValue(-1, new Value({type: VAL_NULL, as: null}));
 		}
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fiber_yield1")
-	static function fiber_yield1(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fiber_yield1")
+	public static function prim_fiber_yield1(vm:VM, args:Array<Value>):Bool {
 		var current = vm.fiber;
 		vm.fiber = current.caller;
 		// Unhook this fiber from the one that called it.
@@ -863,8 +858,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fn_new")
-	static function fn_new(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fn_new")
+	public static function prim_fn_new(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateFn(args[1], "Argument"))
 			return false;
 		// The block argument is already a function, so just return it.
@@ -872,124 +867,124 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fn_arity")
-	static function fn_arity(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fn_arity")
+	public static function prim_fn_arity(vm:VM, args:Array<Value>):Bool {
 		RETURN_NUM(AS_CLOSURE(args[0]).fn.arity);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fn_call0")
-	static function fn_call0(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fn_call0")
+	public static function prim_fn_call0(vm:VM, args:Array<Value>):Bool {
 		call_fn(vm, args, 0);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fn_call1")
-	static function fn_call1(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fn_call1")
+	public static function prim_fn_call1(vm:VM, args:Array<Value>):Bool {
 		call_fn(vm, args, 1);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fn_call2")
-	static function fn_call2(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fn_call2")
+	public static function prim_fn_call2(vm:VM, args:Array<Value>):Bool {
 		call_fn(vm, args, 2);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fn_call3")
-	static function fn_call3(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fn_call3")
+	public static function prim_fn_call3(vm:VM, args:Array<Value>):Bool {
 		call_fn(vm, args, 3);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fn_call4")
-	static function fn_call4(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fn_call4")
+	public static function prim_fn_call4(vm:VM, args:Array<Value>):Bool {
 		call_fn(vm, args, 4);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fn_call5")
-	static function fn_call5(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fn_call5")
+	public static function prim_fn_call5(vm:VM, args:Array<Value>):Bool {
 		call_fn(vm, args, 5);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fn_call6")
-	static function fn_call6(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fn_call6")
+	public static function prim_fn_call6(vm:VM, args:Array<Value>):Bool {
 		call_fn(vm, args, 6);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fn_call7")
-	static function fn_call7(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fn_call7")
+	public static function prim_fn_call7(vm:VM, args:Array<Value>):Bool {
 		call_fn(vm, args, 7);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fn_call8")
-	static function fn_call8(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fn_call8")
+	public static function prim_fn_call8(vm:VM, args:Array<Value>):Bool {
 		call_fn(vm, args, 8);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fn_call9")
-	static function fn_call9(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fn_call9")
+	public static function prim_fn_call9(vm:VM, args:Array<Value>):Bool {
 		call_fn(vm, args, 9);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fn_call10")
-	static function fn_call10(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fn_call10")
+	public static function prim_fn_call10(vm:VM, args:Array<Value>):Bool {
 		call_fn(vm, args, 10);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fn_call11")
-	static function fn_call11(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fn_call11")
+	public static function prim_fn_call11(vm:VM, args:Array<Value>):Bool {
 		call_fn(vm, args, 11);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fn_call12")
-	static function fn_call12(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fn_call12")
+	public static function prim_fn_call12(vm:VM, args:Array<Value>):Bool {
 		call_fn(vm, args, 12);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fn_call13")
-	static function fn_call13(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fn_call13")
+	public static function prim_fn_call13(vm:VM, args:Array<Value>):Bool {
 		call_fn(vm, args, 13);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fn_call14")
-	static function fn_call14(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fn_call14")
+	public static function prim_fn_call14(vm:VM, args:Array<Value>):Bool {
 		call_fn(vm, args, 14);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fn_call15")
-	static function fn_call15(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fn_call15")
+	public static function prim_fn_call15(vm:VM, args:Array<Value>):Bool {
 		call_fn(vm, args, 15);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fn_call16")
-	static function fn_call16(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fn_call16")
+	public static function prim_fn_call16(vm:VM, args:Array<Value>):Bool {
 		call_fn(vm, args, 16);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("fn_toString")
-	static function fn_toString(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("fn_toString")
+	public static function prim_fn_toString(vm:VM, args:Array<Value>):Bool {
 		RETURN_VAL(CONST_STRING(vm, "<fn>"));
 		return false;
 	}
 
 	// Creates a new list of size args[1], with all elements initialized to args[2].
 
-	@:DEF_PRIMITIVE("list_filled")
-	static function list_filled(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("list_filled")
+	public static function prim_list_filled(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateInt(args[1], "Size"))
 			return false;
 		if (AS_NUM(args[1]) < 0)
@@ -1006,14 +1001,14 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("list_new")
-	static function list_new(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("list_new")
+	public static function prim_list_new(vm:VM, args:Array<Value>):Bool {
 		RETURN_OBJ(vm.newList(0));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("list_add")
-	static function list_add(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("list_add")
+	public static function prim_list_add(vm:VM, args:Array<Value>):Bool {
 		AS_LIST(args[0]).elements.write(args[1]);
 		RETURN_VAL(args[1]);
 		return false;
@@ -1027,28 +1022,28 @@ class Core {
 	 * @param args
 	 * @return Bool
 	 */
-	@:DEF_PRIMITIVE("list_addCore")
-	static function list_addCore(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("list_addCore")
+	public static function prim_list_addCore(vm:VM, args:Array<Value>):Bool {
 		AS_LIST(args[0]).elements.write(args[1]);
 		RETURN_VAL(args[0]);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("list_clear")
-	static function list_clear(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("list_clear")
+	public static function prim_list_clear(vm:VM, args:Array<Value>):Bool {
 		AS_LIST(args[0]).elements.clear();
 		RETURN_VAL(new Value({type: VAL_NULL, as: null}));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("list_count")
-	static function list_count(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("list_count")
+	public static function prim_list_count(vm:VM, args:Array<Value>):Bool {
 		RETURN_NUM(AS_LIST(args[0]).elements.count);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("list_insert")
-	static function list_insert(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("list_insert")
+	public static function prim_list_insert(vm:VM, args:Array<Value>):Bool {
 		var list = AS_LIST(args[0]);
 		// count + 1 here so you can "insert" at the very end.
 		var index = vm.validateIndex(args[1], list.elements.count + 1, ["Index"]);
@@ -1067,8 +1062,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("list_iterate")
-	static function list_iterate(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("list_iterate")
+	public static function prim_list_iterate(vm:VM, args:Array<Value>):Bool {
 		var list = AS_LIST(args[0]);
 		// If we're starting the iteration, return the first index.
 		if (IS_NULL(args[1])) {
@@ -1090,8 +1085,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("list_iteratorValue")
-	static function list_iteratorValue(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("list_iteratorValue")
+	public static function prim_list_iteratorValue(vm:VM, args:Array<Value>):Bool {
 		var list = AS_LIST(args[0]);
 		var index = vm.validateIndex(args[1], list.elements.count, ["Iterator"]);
 		#if cpp
@@ -1108,8 +1103,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("list_removeAt")
-	static function list_removeAt(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("list_removeAt")
+	public static function prim_list_removeAt(vm:VM, args:Array<Value>):Bool {
 		var list = AS_LIST(args[0]);
 		var index = vm.validateIndex(args[1], list.elements.count, ["Index"]);
 		#if cpp
@@ -1126,8 +1121,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("list_subscript")
-	static function list_subscript(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("list_subscript")
+	public static function prim_list_subscript(vm:VM, args:Array<Value>):Bool {
 		var list = AS_LIST(args[0]);
 		if (IS_NUM(args[1])) {
 			var index = vm.validateIndex(args[1], list.elements.count, ["Subscript"]);
@@ -1169,8 +1164,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("list_subscriptSetter")
-	static function list_subscriptSetter(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("list_subscriptSetter")
+	public static function prim_list_subscriptSetter(vm:VM, args:Array<Value>):Bool {
 		var list = AS_LIST(args[0]);
 		var index = vm.validateIndex(args[1], list.elements.count, ["Subscript"]);
 		#if cpp
@@ -1188,14 +1183,14 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("map_new")
-	static function map_new(vm:VM, args:Array<Value>) {
+	// @:DEF_PRIMITIVE("map_new")
+	public static function prim_map_new(vm:VM, args:Array<Value>) {
 		RETURN_OBJ(vm.newMap());
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("map_subscript")
-	static function map_subscript(vm:VM, args:Array<Value>) {
+	// @:DEF_PRIMITIVE("map_subscript")
+	public static function prim_map_subscript(vm:VM, args:Array<Value>) {
 		if (!vm.validateKey(args[1]))
 			return false;
 		var map = AS_MAP(args[0]);
@@ -1206,8 +1201,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("map_subscriptSetter")
-	static function map_subscriptSetter(vm:VM, args:Array<Value>) {
+	// @:DEF_PRIMITIVE("map_subscriptSetter")
+	public static function prim_map_subscriptSetter(vm:VM, args:Array<Value>) {
 		if (!vm.validateKey(args[1]))
 			return false;
 		vm.mapSet(AS_MAP(args[0]), args[1], args[2]);
@@ -1223,8 +1218,8 @@ class Core {
 	 * @param args
 	 * @return Bool
 	 */
-	@:DEF_PRIMITIVE("map_addCore")
-	static function map_addCore(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("map_addCore")
+	public static function prim_map_addCore(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateKey(args[1]))
 			return false;
 
@@ -1234,14 +1229,15 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("map_clear")
-	static function map_clear(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("map_clear")
+	public static function prim_map_clear(vm:VM, args:Array<Value>):Bool {
 		vm.mapClear(AS_MAP(args[0]));
 		RETURN_NULL();
+		return false;
 	}
 
-	@:DEF_PRIMITIVE("map_containsKey")
-	static function map_containsKey(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("map_containsKey")
+	public static function prim_map_containsKey(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateKey(args[1]))
 			return false;
 
@@ -1249,14 +1245,14 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("map_count")
-	static function map_count(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("map_count")
+	public static function prim_map_count(vm:VM, args:Array<Value>):Bool {
 		RETURN_NUM(AS_MAP(args[0]).count);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("map_iterate")
-	static function map_iterate(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("map_iterate")
+	public static function prim_map_iterate(vm:VM, args:Array<Value>):Bool {
 		var map = AS_MAP(args[0]);
 		if (map.count == 0)
 			RETURN_FALSE();
@@ -1283,18 +1279,19 @@ class Core {
 		}
 		// If we get here, walked all of the entries.
 		RETURN_FALSE();
+		return false;
 	}
 
-	@:DEF_PRIMITIVE("map_remove")
-	static function map_remove(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("map_remove")
+	public static function prim_map_remove(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateKey(args[1]))
 			return false;
 		RETURN_VAL(vm.mapRemoveKey(AS_MAP(args[0]), args[1]));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("map_keyIteratorValue")
-	static function map_keyIteratorValue(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("map_keyIteratorValue")
+	public static function prim_map_keyIteratorValue(vm:VM, args:Array<Value>):Bool {
 		var map = AS_MAP(args[0]);
 		var index = vm.validateIndex(args[1], map.capacity, ["Iterator"]);
 		#if cpp
@@ -1315,8 +1312,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("map_valueIteratorValue")
-	static function map_valueIteratorValue(vm:VM, args:Array<Value>) {
+	// @:DEF_PRIMITIVE("map_valueIteratorValue")
+	public static function prim_map_valueIteratorValue(vm:VM, args:Array<Value>) {
 		var map = AS_MAP(args[0]);
 		var index = vm.validateIndex(args[1], map.capacity, ["Iterator"]);
 		#if cpp
@@ -1338,102 +1335,104 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("null_not")
-	static function null_not(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("null_not")
+	public static function prim_null_not(vm:VM, args:Array<Value>):Bool {
 		RETURN_VAL({type: VAL_NULL, as: null});
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("null_toString")
-	static function null_toString(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("null_toString")
+	public static function prim_null_toString(vm:VM, args:Array<Value>):Bool {
 		RETURN_VAL(CONST_STRING(vm, "null"));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_fromString")
-	static function num_fromString(vm:VM, args:Array<Value>):Bool {
-		if (!vm.validateString(args[1], "Argument")) return false;
+	// @:DEF_PRIMITIVE("num_fromString")
+	public static function prim_num_fromString(vm:VM, args:Array<Value>):Bool {
+		if (!vm.validateString(args[1], "Argument"))
+			return false;
 		var string = AS_STRING(args[1]);
 
 		// Corner case: Can't parse an empty string.
-		if (string.value.length == 0) RETURN_NULL();
-		
+		if (string.value.length == 0)
+			RETURN_NULL();
+
 		RETURN_NUM(Std.parseFloat(string.value));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_pi")
-	static function num_pi(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_pi")
+	public static function prim_num_pi(vm:VM, args:Array<Value>):Bool {
 		RETURN_NUM(3.14159265358979323846);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_minus")
-	static function num_minus(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_minus")
+	public static function prim_num_minus(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateNum(args[1], "Right operand"))
 			return false;
 		RETURN_NUM(AS_NUM(args[0]) - AS_NUM(args[1]));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_plus")
-	static function num_plus(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_plus")
+	public static function prim_num_plus(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateNum(args[1], "Right operand"))
 			return false;
 		RETURN_NUM(AS_NUM(args[0]) + AS_NUM(args[1]));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_multiply")
-	static function num_multiply(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_multiply")
+	public static function prim_num_multiply(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateNum(args[1], "Right operand"))
 			return false;
 		RETURN_NUM(AS_NUM(args[0]) * AS_NUM(args[1]));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_divide")
-	static function num_divide(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_divide")
+	public static function prim_num_divide(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateNum(args[1], "Right operand"))
 			return false;
 		RETURN_NUM(AS_NUM(args[0]) / AS_NUM(args[1]));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_lt")
-	static function num_lt(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_lt")
+	public static function prim_num_lt(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateNum(args[1], "Right operand"))
 			return false;
 		RETURN_BOOL(AS_NUM(args[0]) < AS_NUM(args[1]));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_gt")
-	static function num_gt(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_gt")
+	public static function prim_num_gt(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateNum(args[1], "Right operand"))
 			return false;
 		RETURN_BOOL(AS_NUM(args[0]) > AS_NUM(args[1]));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_lte")
-	static function num_lte(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_lte")
+	public static function prim_num_lte(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateNum(args[1], "Right operand"))
 			return false;
 		RETURN_BOOL(AS_NUM(args[0]) <= AS_NUM(args[1]));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_gte")
-	static function num_gte(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_gte")
+	public static function prim_num_gte(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateNum(args[1], "Right operand"))
 			return false;
 		RETURN_BOOL(AS_NUM(args[0]) >= AS_NUM(args[1]));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_bitwiseAnd")
-	static function num_bitwiseAnd(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_bitwiseAnd")
+	public static function prim_num_bitwiseAnd(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateNum(args[1], "Right operand"))
 			return false;
 		var left = Std.int(AS_NUM(args[0]));
@@ -1442,8 +1441,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_bitwiseOr")
-	static function num_bitwiseOr(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_bitwiseOr")
+	public static function prim_num_bitwiseOr(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateNum(args[1], "Right operand"))
 			return false;
 		var left = Std.int(AS_NUM(args[0]));
@@ -1452,8 +1451,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_bitwiseXor")
-	static function num_bitwiseXor(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_bitwiseXor")
+	public static function prim_num_bitwiseXor(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateNum(args[1], "Right operand"))
 			return false;
 		var left = Std.int(AS_NUM(args[0]));
@@ -1462,8 +1461,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_bitwiseLeftShift")
-	static function num_bitwiseLeftShift(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_bitwiseLeftShift")
+	public static function prim_num_bitwiseLeftShift(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateNum(args[1], "Right operand"))
 			return false;
 		var left = Std.int(AS_NUM(args[0]));
@@ -1473,8 +1472,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_bitwiseRightShift")
-	static function num_bitwiseRightShift(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_bitwiseRightShift")
+	public static function prim_num_bitwiseRightShift(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateNum(args[1], "Right operand"))
 			return false;
 		var left = Std.int(AS_NUM(args[0]));
@@ -1484,122 +1483,122 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_abs")
-	static function num_abs(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_abs")
+	public static function prim_num_abs(vm:VM, args:Array<Value>):Bool {
 		RETURN_NUM(Math.abs(AS_NUM(args[0])));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_acos")
-	static function num_acos(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_acos")
+	public static function prim_num_acos(vm:VM, args:Array<Value>):Bool {
 		RETURN_NUM(Math.acos(AS_NUM(args[0])));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_asin")
-	static function num_asin(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_asin")
+	public static function prim_num_asin(vm:VM, args:Array<Value>):Bool {
 		RETURN_NUM(Math.asin(AS_NUM(args[0])));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_atan")
-	static function num_atan(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_atan")
+	public static function prim_num_atan(vm:VM, args:Array<Value>):Bool {
 		RETURN_NUM(Math.atan(AS_NUM(args[0])));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_ceil")
-	static function num_ceil(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_ceil")
+	public static function prim_num_ceil(vm:VM, args:Array<Value>):Bool {
 		RETURN_NUM(Math.ceil(AS_NUM(args[0])));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_cos")
-	static function num_cos(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_cos")
+	public static function prim_num_cos(vm:VM, args:Array<Value>):Bool {
 		RETURN_NUM(Math.cos(AS_NUM(args[0])));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_sin")
-	static function num_sin(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_sin")
+	public static function prim_num_sin(vm:VM, args:Array<Value>):Bool {
 		RETURN_NUM(Math.sin(AS_NUM(args[0])));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_exp")
-	static function num_exp(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_exp")
+	public static function prim_num_exp(vm:VM, args:Array<Value>):Bool {
 		RETURN_NUM(Math.exp(AS_NUM(args[0])));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_floor")
-	static function num_floor(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_floor")
+	public static function prim_num_floor(vm:VM, args:Array<Value>):Bool {
 		RETURN_NUM(Math.floor(AS_NUM(args[0])));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_negate")
-	static function num_negate(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_negate")
+	public static function prim_num_negate(vm:VM, args:Array<Value>):Bool {
 		RETURN_NUM(-AS_NUM(args[0]));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_round")
-	static function num_round(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_round")
+	public static function prim_num_round(vm:VM, args:Array<Value>):Bool {
 		RETURN_NUM(Math.round(AS_NUM(args[0])));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_sqrt")
-	static function num_sqrt(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_sqrt")
+	public static function prim_num_sqrt(vm:VM, args:Array<Value>):Bool {
 		RETURN_NUM(Math.sqrt(AS_NUM(args[0])));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_tan")
-	static function num_tan(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_tan")
+	public static function prim_num_tan(vm:VM, args:Array<Value>):Bool {
 		RETURN_NUM(Math.tan(AS_NUM(args[0])));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_log")
-	static function num_log(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_log")
+	public static function prim_num_log(vm:VM, args:Array<Value>):Bool {
 		RETURN_NUM(Math.log(AS_NUM(args[0])));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_mod")
-	static function num_mod(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_mod")
+	public static function prim_num_mod(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateNum(args[1], "Right operand"))
 			return false;
 		RETURN_NUM(AS_NUM(args[0]) % AS_NUM(args[1]));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_eqeq")
-	static function num_eqeq(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_eqeq")
+	public static function prim_num_eqeq(vm:VM, args:Array<Value>):Bool {
 		if (!IS_NUM(args[1]))
 			RETURN_VAL({type: VAL_FALSE, as: null});
 		RETURN_BOOL(AS_NUM(args[0]) == AS_NUM(args[1]));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_bangeq")
-	static function num_bangeq(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_bangeq")
+	public static function prim_num_bangeq(vm:VM, args:Array<Value>):Bool {
 		if (!IS_NUM(args[1]))
 			RETURN_VAL(new Value({type: VAL_FALSE, as: null}));
 		RETURN_BOOL(AS_NUM(args[0]) != AS_NUM(args[1]));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_bitwiseNot")
-	static function num_bitwiseNot(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_bitwiseNot")
+	public static function prim_num_bitwiseNot(vm:VM, args:Array<Value>):Bool {
 		RETURN_NUM(~Std.int(AS_NUM(args[0])));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_dotDot")
-	static function num_dotDot(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_dotDot")
+	public static function prim_num_dotDot(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateNum(args[1], "Right hand side of range"))
 			return false;
 		var from:Float = AS_NUM(args[0]);
@@ -1608,8 +1607,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_dotDotDot")
-	static function num_dotDotDot(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_dotDotDot")
+	public static function prim_num_dotDotDot(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateNum(args[1], "Right hand side of range"))
 			return false;
 		var from:Float = AS_NUM(args[0]);
@@ -1618,35 +1617,35 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_atan2")
-	static function num_atan2(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_atan2")
+	public static function prim_num_atan2(vm:VM, args:Array<Value>):Bool {
 		RETURN_NUM(Math.atan2(AS_NUM(args[0]), AS_NUM(args[1])));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_pow")
-	static function num_pow(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_pow")
+	public static function prim_num_pow(vm:VM, args:Array<Value>):Bool {
 		RETURN_NUM(Math.pow(AS_NUM(args[0]), AS_NUM(args[1])));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_fraction")
-	static function num_fraction(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_fraction")
+	public static function prim_num_fraction(vm:VM, args:Array<Value>):Bool {
 		var f = AS_NUM(args[0]);
 		var v = Math.ceil(((f < 1.0) ? f : (f % Math.floor(f))) * 10000);
 		RETURN_NUM(v / 10000);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_isInfinity")
-	static function num_isInfinity(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_isInfinity")
+	public static function prim_num_isInfinity(vm:VM, args:Array<Value>):Bool {
 		var q = Math.isFinite(AS_NUM(args[0]));
 		RETURN_BOOL(!q);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_isInteger")
-	static function num_isInteger(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_isInteger")
+	public static function prim_num_isInteger(vm:VM, args:Array<Value>):Bool {
 		var value = AS_NUM(args[0]);
 		if (Math.isNaN(value) || !Math.isFinite(value))
 			RETURN_VAL({type: VAL_FALSE, as: null});
@@ -1655,15 +1654,15 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_isNan")
-	static function num_isNan(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_isNan")
+	public static function prim_num_isNan(vm:VM, args:Array<Value>):Bool {
 		var q = Math.isNaN(AS_NUM(args[0]));
 		RETURN_BOOL(q);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_sign")
-	static function num_sign(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_sign")
+	public static function prim_num_sign(vm:VM, args:Array<Value>):Bool {
 		var value = AS_NUM(args[0]);
 		if (value > 0) {
 			RETURN_NUM(1);
@@ -1675,58 +1674,58 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_largest")
-	static function num_largest(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_largest")
+	public static function prim_num_largest(vm:VM, args:Array<Value>):Bool {
 		RETURN_NUM(Ints.MAX);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_smallest")
-	static function num_smallest(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_smallest")
+	public static function prim_num_smallest(vm:VM, args:Array<Value>):Bool {
 		RETURN_NUM(Ints.MIN);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_toString")
-	static function num_toString(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_toString")
+	public static function prim_num_toString(vm:VM, args:Array<Value>):Bool {
 		RETURN_VAL(vm.numToString(AS_NUM(args[0])));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("num_truncate")
-	static function num_truncate(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("num_truncate")
+	public static function prim_num_truncate(vm:VM, args:Array<Value>):Bool {
 		var value = AS_NUM(args[0]);
 		var trunc = value < 0 ? Math.ceil(value) : Math.floor(value);
 		RETURN_NUM(trunc);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("object_same")
-	static function object_same(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("object_same")
+	public static function prim_object_same(vm:VM, args:Array<Value>):Bool {
 		RETURN_BOOL(Value.equal(args[1], args[2]));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("object_not")
-	static function object_not(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("object_not")
+	public static function prim_object_not(vm:VM, args:Array<Value>):Bool {
 		RETURN_VAL({type: VAL_FALSE, as: null});
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("object_eqeq")
-	static function object_eqeq(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("object_eqeq")
+	public static function prim_object_eqeq(vm:VM, args:Array<Value>):Bool {
 		RETURN_BOOL(Value.equal(args[0], args[1]));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("object_bangeq")
-	static function object_bangeq(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("object_bangeq")
+	public static function prim_object_bangeq(vm:VM, args:Array<Value>):Bool {
 		RETURN_BOOL(!Value.equal(args[0], args[1]));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("object_is")
-	static function object_is(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("object_is")
+	public static function prim_object_is(vm:VM, args:Array<Value>):Bool {
 		if (!IS_CLASS(args[1])) {
 			RETURN_ERROR("Right operand must be a class.");
 		}
@@ -1742,54 +1741,54 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("object_toString")
-	static function object_toString(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("object_toString")
+	public static function prim_object_toString(vm:VM, args:Array<Value>):Bool {
 		var obj = AS_OBJ(args[0]);
 		var name = OBJ_VAL(obj.classObj.name);
 		RETURN_VAL(vm.stringFormat("instance of @", [name]));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("object_type")
-	static function object_type(vm:VM, args:Array<Value>) {
+	// @:DEF_PRIMITIVE("object_type")
+	public static function prim_object_type(vm:VM, args:Array<Value>) {
 		RETURN_OBJ(vm.getClass(args[0]));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("range_from")
-	static function range_from(vm:VM, args:Array<Value>) {
+	// @:DEF_PRIMITIVE("range_from")
+	public static function prim_range_from(vm:VM, args:Array<Value>) {
 		RETURN_NUM(AS_RANGE(args[0]).from);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("range_to")
-	static function range_to(vm:VM, args:Array<Value>) {
+	// @:DEF_PRIMITIVE("range_to")
+	public static function prim_range_to(vm:VM, args:Array<Value>) {
 		RETURN_NUM(AS_RANGE(args[0]).to);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("range_min")
-	static function range_min(vm:VM, args:Array<Value>) {
+	// @:DEF_PRIMITIVE("range_min")
+	public static function prim_range_min(vm:VM, args:Array<Value>) {
 		var range = AS_RANGE(args[0]);
 		RETURN_NUM(Math.min(range.from, range.to));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("range_max")
-	static function range_max(vm:VM, args:Array<Value>) {
+	// @:DEF_PRIMITIVE("range_max")
+	public static function prim_range_max(vm:VM, args:Array<Value>) {
 		var range = AS_RANGE(args[0]);
 		RETURN_NUM(Math.max(range.from, range.to));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("range_isInclusive")
-	static function range_isInclusive(vm:VM, args:Array<Value>) {
+	// @:DEF_PRIMITIVE("range_isInclusive")
+	public static function prim_range_isInclusive(vm:VM, args:Array<Value>) {
 		RETURN_BOOL(AS_RANGE(args[0]).isInclusive);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("range_iterate")
-	static function range_iterate(vm:VM, args:Array<Value>) {
+	// @:DEF_PRIMITIVE("range_iterate")
+	public static function prim_range_iterate(vm:VM, args:Array<Value>) {
 		var range = AS_RANGE(args[0]);
 		// Special case: empty range.
 		if (range.from == range.to && !range.isInclusive)
@@ -1816,16 +1815,16 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("range_iteratorValue")
-	static function range_iteratorValue(vm:VM, args:Array<Value>) {
+	// @:DEF_PRIMITIVE("range_iteratorValue")
+	public static function prim_range_iteratorValue(vm:VM, args:Array<Value>) {
 		// Assume the iterator is a number so that is the value of the range.
 		var v = args[1];
 		RETURN_VAL(v);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("range_toString")
-	static function range_toString(vm:VM, args:Array<Value>) {
+	// @:DEF_PRIMITIVE("range_toString")
+	public static function prim_range_toString(vm:VM, args:Array<Value>) {
 		var range = AS_RANGE(args[0]);
 		var from = vm.numToString(range.from);
 		vm.pushRoot(AS_OBJ(from));
@@ -1838,8 +1837,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("string_fromCodePoint")
-	static function string_fromCodePoint(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("string_fromCodePoint")
+	public static function prim_string_fromCodePoint(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateInt(args[1], "Code point"))
 			return false;
 		var codePoint = Std.int(AS_NUM(args[1]));
@@ -1852,8 +1851,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("string_fromByte")
-	static function string_fromByte(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("string_fromByte")
+	public static function prim_string_fromByte(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateInt(args[1], "Code point"))
 			return false;
 		var byte = Std.int(AS_NUM(args[1]));
@@ -1862,13 +1861,13 @@ class Core {
 		} else if (byte > 0xff) {
 			RETURN_ERROR("Byte cannot be greater than 0xff.");
 		}
-		
+
 		RETURN_VAL(vm.stringFromByte(byte));
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("string_byteAt")
-	static function string_byteAt(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("string_byteAt")
+	public static function prim_string_byteAt(vm:VM, args:Array<Value>):Bool {
 		var string = AS_STRING(args[0]);
 		var index = vm.validateIndex(args[1], string.value.length, ["Index"]);
 		#if cpp
@@ -1885,20 +1884,22 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("string_plus")
-	static function string_plus(vm:VM, args:Array<Value>){
-		if (!vm.validateString(args[1], "Right operand")) return false;
+	// @:DEF_PRIMITIVE("string_plus")
+	public static function prim_string_plus(vm:VM, args:Array<Value>) {
+		if (!vm.validateString(args[1], "Right operand"))
+			return false;
 		RETURN_VAL(vm.stringFormat("@@", [args[0], args[1]]));
+		return false;
 	}
 
-	@:DEF_PRIMITIVE("string_byteCount")
-	static function string_byteCount(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("string_byteCount")
+	public static function prim_string_byteCount(vm:VM, args:Array<Value>):Bool {
 		RETURN_NUM(AS_STRING(args[0]).value.length);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("string_codePointAt")
-	static function string_codePointAt(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("string_codePointAt")
+	public static function prim_string_codePointAt(vm:VM, args:Array<Value>):Bool {
 		var string = AS_STRING(args[0]);
 		var index = vm.validateIndex(args[1], string.value.length, ["Index"]);
 		#if cpp
@@ -1921,8 +1922,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("string_contains")
-	static function string_contains(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("string_contains")
+	public static function prim_string_contains(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateString(args[1], "Argument"))
 			return false;
 		var string = AS_STRING(args[0]);
@@ -1932,8 +1933,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("string_endsWith")
-	static function string_endsWith(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("string_endsWith")
+	public static function prim_string_endsWith(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateString(args[1], "Argument"))
 			return false;
 		var string = AS_STRING(args[0]);
@@ -1943,8 +1944,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("string_indexOf1")
-	static function string_indexOf1(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("string_indexOf1")
+	public static function prim_string_indexOf1(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateString(args[1], "Argument"))
 			return false;
 		var string = AS_STRING(args[0]);
@@ -1954,8 +1955,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("string_indexOf2")
-	static function string_indexOf2(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("string_indexOf2")
+	public static function prim_string_indexOf2(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateString(args[1], "Argument"))
 			return false;
 		var string = AS_STRING(args[0]);
@@ -1976,8 +1977,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("string_iterate")
-	static function string_iterate(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("string_iterate")
+	public static function prim_string_iterate(vm:VM, args:Array<Value>):Bool {
 		var string = AS_STRING(args[0]);
 		// If we're starting the iteration, return the first index.
 		if (IS_NULL(args[1])) {
@@ -2004,8 +2005,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("string_iterateByte")
-	static function string_iterateByte(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("string_iterateByte")
+	public static function prim_string_iterateByte(vm:VM, args:Array<Value>):Bool {
 		var string = AS_STRING(args[0]);
 		// If we're starting the iteration, return the first index.
 		if (IS_NULL(args[1])) {
@@ -2030,8 +2031,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("string_iteratorValue")
-	static function string_iteratorValue(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("string_iteratorValue")
+	public static function prim_string_iteratorValue(vm:VM, args:Array<Value>):Bool {
 		var string = AS_STRING(args[0]);
 		var index = vm.validateIndex(args[1], string.value.length, ["Index"]);
 		#if cpp
@@ -2049,8 +2050,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("string_startsWith")
-	static function string_startsWith(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("string_startsWith")
+	public static function prim_string_startsWith(vm:VM, args:Array<Value>):Bool {
 		if (!vm.validateString(args[1], "Argument"))
 			return false;
 		var string = AS_STRING(args[0]);
@@ -2060,8 +2061,8 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("string_subscript")
-	static function string_subscript(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("string_subscript")
+	public static function prim_string_subscript(vm:VM, args:Array<Value>):Bool {
 		var string = AS_STRING(args[0]);
 		if (IS_NUM(args[1])) {
 			var index = vm.validateIndex(args[1], string.value.length, ["Subscript"]);
@@ -2084,27 +2085,28 @@ class Core {
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("string_toString")
-	static function string_toString(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("string_toString")
+	public static function prim_string_toString(vm:VM, args:Array<Value>):Bool {
 		RETURN_VAL(args[0]);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("system_clock")
-	static function system_clock(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("system_clock")
+	public static function prim_system_clock(vm:VM, args:Array<Value>):Bool {
 		var time:Float = Sys.time();
 		RETURN_NUM(time);
 		return false;
 	}
 
-	@:DEF_PRIMITIVE("system_gc")
-	static function system_gc(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("system_gc")
+	public static function prim_system_gc(vm:VM, args:Array<Value>):Bool {
 		vm.collectGarbage();
 		RETURN_NULL();
+		return false;
 	}
 
-	@:DEF_PRIMITIVE("system_writeString")
-	static function system_writeString(vm:VM, args:Array<Value>):Bool {
+	// @:DEF_PRIMITIVE("system_writeString")
+	public static function prim_system_writeString(vm:VM, args:Array<Value>):Bool {
 		if (vm.config.writeFn != null) {
 			vm.config.writeFn(vm, AS_STRING(args[1]).value);
 		}

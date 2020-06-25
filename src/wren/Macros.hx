@@ -60,6 +60,53 @@ class Macros {
 	 */
 	public static final MAX_FIELDS = 255;
 
+	macro static public function BuildPrimitives():Array<Field> {
+		// The context is the class this build macro is called on
+		var fields = Context.getBuildFields();
+
+		for (field in fields) {
+			var fieldName = field.name;
+			if (field.meta == null)
+				continue;
+
+			for (meta in field.meta) {
+				if (meta.name == ":def" || meta.name == ":DEF_PRIMITIVE") {
+					for (param in meta.params) {
+						switch (param.expr) {
+							case EConst(CString(name)):
+								{
+									var fname = 'prim_$name';
+									fields.push({
+										pos: Context.currentPos(),
+										access: [AStatic, APublic],
+										name: fname,
+										meta: null,
+										kind: FieldType.FFun({
+											ret: TPath({name: "Bool", pack: []}),
+											expr: macro return $i{name}(vm, args),
+											args: [
+												{name: 'vm', type: TPath({name: "VM", pack: ["wren"]})},
+												{
+													name: 'args',
+													type: TPath({
+														name: "Array",
+														pack: [],
+														params: [TPType(TPath({name: "Value", pack: ["wren"]}))]
+													})
+												}
+											]
+										})
+									});
+								}
+							case _:
+						}
+					}
+				}
+			}
+		}
+		return fields;
+	}
+
 	macro static public function RETURN_VAL(value:Expr):Expr {
 		var pos = Context.currentPos();
 		var exp = macro $i{'args'}[0] = $value;
@@ -125,7 +172,7 @@ class Macros {
 		var e = map(condition);
 		var a = [for (i in 0...el.length) macro {expr: $v{descs[i]}, value: $i{"_tmp" + i}}];
 		el.push(macro if (!$e)
-			@:pos(p) throw new Assert.AssertionFailure($message, $a{a}));
+			@:pos(p) throw new AssertionFailure($message, $a{a}));
 		return macro $b{el};
 	}
 
@@ -155,83 +202,29 @@ class Macros {
 	macro static public function PRIMITIVE(cls:Expr, name:Expr, fn:Expr):Expr {
 		var exprs:Array<Expr> = [];
 		exprs.push(macro var symbol = vm.symbolTableEnsure($i{"vm"}.methodNames, $name, $name.length));
-		var funcName = "";
+		// var funcName = "";
 		switch fn.expr {
 			case EConst(CIdent(fname)):
 				{
-					funcName = 'prim_' + $v{fname};
+					var funcName = 'prim_$fname';
+					exprs.push(
+					macro var method:Method = {
+						type: $i{"METHOD_PRIMITIVE"},
+						as: {
+							primitive: $i{funcName}
+						}
+					});
+					exprs.push(macro vm.bindMethod($cls, symbol, method));
 				}
 			case _:
 		}
-
-		exprs.push(macro var method:Method = {
-			type: $i{"METHOD_PRIMITIVE"},
-			as: {
-				primitive: $i{funcName}
-			}
-		});
-
-		exprs.push(macro vm.bindMethod($cls, $i{"symbol"}, $i{"method"}));
+	
 		return macro $b{exprs};
 	}
 
-	macro static public function BuildPrimitives():Array<Field> {
-		// The context is the class this build macro is called on
-		var fields = Context.getBuildFields();
-
-		for (field in fields) {
-			var fieldName = field.name;
-			if (field.meta == null)
-				continue;
-
-			for (meta in field.meta) {
-				if (meta.name == ":def" || meta.name == ":DEF_PRIMITIVE") {
-					for (param in meta.params) {
-						switch (param.expr) {
-							case EConst(CString(name)):
-								{
-									var fname = 'prim_$name';
-									fields.push({
-										pos: Context.currentPos(),
-										access: [AStatic, APublic],
-										name: fname,
-										meta: null,
-										kind: FieldType.FFun({
-											ret: TPath({name: "Bool", pack: []}),
-											expr: macro return $i{name}(vm, args),
-											args: [
-												{name: 'vm', type: TPath({name: "VM", pack: ["wren"]})},
-												{
-													name: 'args',
-													type: TPath({
-														name: "Array",
-														pack: [],
-														params: [TPType(TPath({name: "Value", pack: ["wren"]}))]
-													})
-												}
-											]
-										})
-									});
-								}
-							case _:
-						}
-					}
-				}
-			}
-		}
-		return fields;
-	}
-
-	// static public final RETURN_FALSE = () -> {
-	// 	RETURN_VAL({type: VAL_FALSE, as: null});
-	// 	return false;
-	// };
-
-	// static public final RETURN_TRUE = () -> {
-	// 	RETURN_VAL({type: VAL_TRUE, as: null});
-	// 	return false;
-	// };
-
+	static public inline function CONST_STRING(vm:VM, text:String) {
+		return vm.newStringLength(text);
+    }
 
 
 	static public inline function OBJ_VAL(obj:Obj):Value {
@@ -342,12 +335,6 @@ class Macros {
 		} while (true);
 
 		return body;
-	}
-
-		
-
-	static public inline function CONST_STRING(vm:VM, text:String) {
-		return vm.newStringLength(text);
 	}
 
 	/**

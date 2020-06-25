@@ -1,9 +1,17 @@
 package wren;
 
+
+import wren.Core.*;
+import wren.WrenFn.WrenReallocateFn;
 import wren.Buffer.ValueBuffer;
 import wren.Buffer.SymbolTable;
 import wren.Macros.*;
+import wren.Macros.ASSERT;
+import wren.Macros.AssertionFailure;
 import haxe.ds.Vector;
+
+
+
 
 class VM {
 	public var boolClass:ObjClass;
@@ -114,7 +122,63 @@ class VM {
 	 */
 	public var methodNames:SymbolTable;
 
-	public function new() {}
+	public function new(config:WrenConfiguration) {
+		var reallocate:WrenReallocateFn = defaultReallocate;
+		if (config != null)
+			reallocate = config.reallocateFn;
+
+		if (config != null)
+			this.config = config;
+		else
+			initConfiguration(this.config);
+
+		// TODO: Should we allocate and free this during a GC?
+		this.grayCount = 0;
+		// TODO: Tune this.
+		this.grayCapacity = 4;
+		this.gray = [];
+
+		this.methodNames = new SymbolTable(this);
+		this.modules = newMap();
+
+		// initialize core
+		initCore(this);
+	}
+
+	public function free() {
+		ASSERT(this.methodNames.count > 0, "VM appears to have already been freed.");
+		// Free all of the GC objects.
+		var obj = this.first;
+		while (obj != null) {
+			var next = obj.next;
+			freeObj(obj);
+			obj = next;
+		}
+		// Free up the GC gray set.
+		this.gray = [];
+		// Tell the user if they didn't free any handles. We don't want to just free
+		// them here because the host app may still have pointers to them that they
+		// may try to use. Better to tell them about the bug early.
+		ASSERT(handles == null, "All handles have not been released.");
+
+		this.methodNames.clear();
+	}
+
+	function initConfiguration(config:WrenConfiguration) {
+		config.reallocateFn = defaultReallocate;
+		config.resolveModuleFn = null;
+		config.loadModuleFn = null;
+		config.bindForeignMethodFn = null;
+		config.bindForeignClassFn = null;
+		config.writeFn = null;
+		config.errorFn = null;
+		config.initialHeapSize = 1024 * 1024 * 10;
+		config.minHeapSize = 1024 * 1024;
+		config.heapGrowthPercent = 50;
+		config.userData = null;
+	}
+
+	function defaultReallocate(ptr:Pointer<Dynamic>, newSize:Int) {}
 
 	public function symbolTableEnsure(symbols:SymbolTable, name:String, length:Int):Int {
 		trace(symbols, name, length);
@@ -192,7 +256,8 @@ class VM {
 	 */
 	public function collectGarbage() {}
 
-	public function newStringLength(text:String):Value return null;
+	public function newStringLength(text:String):Value
+		return null;
 
 	public function validateString(value:Value, argName:String):Bool {
 		return false;
@@ -317,13 +382,15 @@ class VM {
 	 * Creates a new string containing the UTF-8 encoding of [value].
 	 * @param value
 	 */
-	public function stringFromCodePoint(value:Int):Value return null;
+	public function stringFromCodePoint(value:Int):Value
+		return null;
 
 	/**
 	 * Creates a new string from the integer representation of a byte
-	 * @param value 
+	 * @param value
 	 */
-	public function stringFromByte(value:Int):Value return null;
+	public function stringFromByte(value:Int):Value
+		return null;
 
 	/**
 	 * Creates a new string containing the code point in [string] starting at byte
@@ -431,8 +498,8 @@ class VM {
 
 	public function interpret(module:String, source:String) {}
 
-	public function findVariable(module:ObjModule, variable:String):Value  return null;
-
+	public function findVariable(module:ObjModule, variable:String):Value
+		return null;
 
 	public function newFiber(closure:ObjClosure):ObjFiber {
 		return null;

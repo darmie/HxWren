@@ -37,7 +37,7 @@ typedef WrenForeignClassMethods = {
  * - To free memory, [memory] will be the memory to free and [newSize] will be
  * zero. It should return NULL.
  */
-typedef WrenReallocateFn = (memory:haxe.io.Bytes, newSize:Int) -> Void;
+typedef WrenReallocateFn = (memory:Pointer<Dynamic>, newSize:Int) -> Void;
 
 /**
  * Gives the host a chance to canonicalize the imported module name,
