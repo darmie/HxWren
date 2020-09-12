@@ -8,6 +8,7 @@ enum EOpcodes {
 enum abstract  Opcodes(EOpcodes) from EOpcodes to EOpcodes {
 
     inline function new(name:String, effect:Int) {
+		Compiler.stackEffects.push(effect);
         this = OPCODE(name, effect);
     }
 

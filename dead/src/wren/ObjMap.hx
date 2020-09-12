@@ -21,17 +21,57 @@ import wren.MapEntry;
  * found after them if the key that was removed was part of a prior collision.
  * When the array gets resized, all tombstones are discarded.
  */
-typedef ObjMap = {
+typedef TObjMap = {
     > Obj,
-    var obj:Obj;
+    var ?obj:Obj;
     /**
      * The number of entries allocated.
      */
-    var capacity:Int;
+    var ?capacity:Int;
     /**
      * The number of entries in the map.
      */
-    var count:Int;
+    var ?count:Int;
 
-    var entries:Array<MapEntry>;
+    var ?entries:Array<MapEntry>;
+}
+
+@:forward
+abstract ObjMap(TObjMap) from TObjMap from TObjMap {
+    public inline function new(o:TObjMap){
+        this = o;
+    }
+
+    public static inline function init(vm:VM):ObjMap {
+        // vm.reallocate(null, 0, Math.random());
+        var map:ObjMap = new ObjMap({});
+        vm.initObj(cast map, OBJ_MAP, vm.mapClass);
+        map.capacity = 0;
+        map.count = 0;
+        map.entries = null;
+        return map;
+    }
+
+    /**
+	 * Associates [key] with [value] in [map].
+	 * @param map
+	 * @param key
+	 * @param value
+     */
+     
+    @:arrayAccess
+	public inline function set(key:Value, value:Value) {
+
+    }
+
+	/**
+	 * Looks up [key] in [map]. If found, returns the value. Otherwise, returns
+	 * `UNDEFINED_VAL`.
+	 * @param map
+	 * @param key
+     */
+    @:arrayAccess
+	public inline function get( key:Value):Value {
+		return null;
+	}
 }

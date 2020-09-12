@@ -1,9 +1,9 @@
 {
-  "name": "wrenc",
-  "url" : "https://github.com/YOUR_NAME/wrenc/",
+  "name": "WrenVM",
+  "url" : "https://github.com/YOUR_NAME/WrenVM/",
   "license": "MIT",
-  "tags": ["haxe","js"],
-  "description": "description of wrenc",
+  "tags": ["haxe","interp"],
+  "description": "description of WrenVM",
   "classPath": "src",
   "version": "0.0.1",
   "releasenote": "Initial release",

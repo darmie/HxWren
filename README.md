@@ -1,15 +1,17 @@
 # HxWren
 
-## An Haxe implementation of the [Wren](https://wren.io) virtual machine.
+## A Bytecode compiler and interpreter for Wren programming language
 
 ### Dependencies
+
  * [Haxe](https://haxe.org/)
- * [min-max](https://github.com/skial/min-max#2e347ace1f88d8a1f6d30b5fc27130e911e74e6c)
+ * [Node.js](https://nodejs.org/)
 
 This project uses [lix.pm](https://github.com/lix-pm/lix.client) as Haxe package manager.
-Run `npm install` to install `lix-pm` and dependencies.
+Run `npm install` to install the dependencies.
 
-### Compile interp
+### Compile and Run
+
 ```
 npm run haxe build.hxml
 ```

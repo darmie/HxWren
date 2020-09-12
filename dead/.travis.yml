@@ -4,7 +4,7 @@ dist: trusty
 language: haxe
 
 haxe:
-  - "3.4.7"
+  - "4.1.1"
   - "development"
 
 matrix:
@@ -12,16 +12,16 @@ matrix:
     - haxe: development
 
 install:
-  - yes | haxelib install all
+  - npm install && npm run lix install gh:skial/min-max
 
 script:
-  - npm lix use haxe $TRAVIS_HAXE_VERSION
+  - npm run lix use haxe $TRAVIS_HAXE_VERSION
   - npm run haxe build.hxml
 
 
 deploy:
   - provider: script
-    haxe: 3.4.7
+    haxe: 4.1.1
     script: bash ./release_haxelib.sh $HAXELIB_PWD
     on:
       tags: true

@@ -1,4 +1,4 @@
 #!/bin/sh
-rm -f WrenVM.zip
-zip -r WrenVM.zip src *.hxml *.json *.md run.n
-haxelib submit WrenVM.zip $HAXELIB_PWD --always
+rm -f wrenc.zip
+zip -r wrenc.zip src *.hxml *.json *.md run.n
+haxelib submit wrenc.zip $HAXELIB_PWD --always

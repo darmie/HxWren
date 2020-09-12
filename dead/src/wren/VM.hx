@@ -177,6 +177,8 @@ class VM {
 
 	function defaultReallocate(ptr:Pointer<Dynamic>, newSize:Int) {}
 
+
+
 	public function symbolTableEnsure(symbols:SymbolTable, name:ObjString, length:Int):Int {
 		// See if the symbol is already defined.
 		var existing = symbolTableFind(symbols, name, length);
@@ -295,7 +297,18 @@ class VM {
 	 */
 	public function freeObj(obj:Obj) {}
 
+	public function initObj(obj:Obj, type:ObjType, classObj:ObjClass){
+		obj.type = type;
+		obj.isDark = false;
+		obj.classObj = classObj;
+		obj.next = this.first;
+		this.first = obj;
+	}
+
 	public static function reallocate<T>(vm:VM, ?memory:T):T {
+		// vm.bytesAllocated += newSize - oldSize;
+		// if (newSize > 0 && bytesAllocated > nextGC) collectGarbage();
+		// return cast vm.config.reallocateFn(memory, newSize);
 		return null;
 	}
 
@@ -314,6 +327,17 @@ class VM {
 	public function allocateString(text:String) {}
 
 	public function stringFormat(format:String, args:Array<Dynamic>):Value {
+		return null;
+	}
+
+	/**
+	 * Creates a new empty function. Before being used, it must have code,
+	 * constants, etc. added to it.
+	 * @param module 
+	 * @param maxSlots 
+	 * @return ObjFn
+	 */
+	public function newFunction(module:ObjModule, maxSlots:Int):ObjFn{
 		return null;
 	}
 
@@ -394,7 +418,9 @@ class VM {
 	 * @param buffer
 	 * @param data
 	 */
-	public function valueBufferWrite(buffer:ValueBuffer, data:Value) {}
+	public function valueBufferWrite(buffer:ValueBuffer, data:Value) {
+		buffer.write(data);
+	}
 
 	/**
 		* Given a [range] and the [length] of the object being operated on, determines
@@ -422,9 +448,19 @@ class VM {
 		return null;
 	}
 
-	public function pushRoot(obj:Obj) {}
+	public function pushRoot(obj:Obj) {
+		ASSERT(obj != null, "Can't root NULL.");
 
-	public function popRoot() {}
+		ASSERT(this.numTempRoots < WREN_MAX_TEMP_ROOTS, "Too many temporary roots.");
+		
+		var index = this.numTempRoots++;
+		this.tempRoots[index] = obj;
+	}
+
+	public function popRoot() {
+		ASSERT(numTempRoots > 0, "No temporary roots to release.");
+		numTempRoots--;
+	}
 
 	/**
 	 * Creates a new string containing the UTF-8 encoding of [value].
@@ -478,24 +514,6 @@ class VM {
 	 * Creates a new Map
 	 */
 	public function newMap():ObjMap {
-		return null;
-	}
-
-	/**
-	 * Associates [key] with [value] in [map].
-	 * @param map
-	 * @param key
-	 * @param value
-	 */
-	public function mapSet(map:ObjMap, key:Value, value:Value) {}
-
-	/**
-	 * Looks up [key] in [map]. If found, returns the value. Otherwise, returns
-	 * `UNDEFINED_VAL`.
-	 * @param map
-	 * @param key
-	 */
-	public function mapGet(map:ObjMap, key:Value):Value {
 		return null;
 	}
 

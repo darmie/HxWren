@@ -1,3 +1,0 @@
-package wren;
-
-class Compiler {}
