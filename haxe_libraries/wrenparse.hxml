@@ -1,0 +1,6 @@
+# @install: lix --silent download "haxelib:wrenparse#0.0.1" into wrenparse/0.0.1/haxelib
+-D wrenparse=0.0.1
+-cp ${HAXESHIM_LIBCACHE}/wrenparse/0.0.1/haxelib/src
+
+-lib hxcpp
+-lib hxparse
